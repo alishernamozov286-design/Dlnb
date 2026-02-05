@@ -123,6 +123,11 @@ npm run build
 
 echo "✅ Frontend built"
 
+# Create nginx directory if not exists
+echo "📁 Creating nginx directory..."
+sudo mkdir -p /var/www/dalnaboyshop
+sudo chown -R $USER:$USER /var/www/dalnaboyshop
+
 # Setup nginx to serve frontend
 echo ""
 echo "📝 Nginx Configuration:"

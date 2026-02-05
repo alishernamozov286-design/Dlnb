@@ -62,8 +62,18 @@ npm ci
 echo "🏗️  Building frontend..."
 npm run build
 
+# Create nginx directory if not exists
+echo "📁 Creating nginx directory..."
+sudo mkdir -p /var/www/dalnaboyshop
+sudo chown -R $USER:$USER /var/www/dalnaboyshop
+
 # Deploy to nginx directory
 echo "📦 Deploying to nginx..."
+
+# Create directory if not exists
+sudo mkdir -p /var/www/dalnaboyshop
+
+# Copy files
 sudo cp -r dist/* /var/www/dalnaboyshop/
 
 echo "✅ Frontend deployed"
