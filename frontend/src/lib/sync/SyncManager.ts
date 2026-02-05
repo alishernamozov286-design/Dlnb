@@ -24,13 +24,13 @@ export class SyncManager {
     this.queueManager = QueueManager.getInstance();
     this.storage = IndexedDBManager.getInstance();
 
-    // Listen to network changes - Network stabilize bo'lishini kutish
+    // Listen to network changes - Tez sync qilish
     this.networkManager.onStatusChange((status) => {
       if (status.isOnline && !this.isSyncing) {
-        // Network to'liq stabilize bo'lishini kutish
+        // Network stabilize bo'lishini kutish - 500ms (tezroq)
         setTimeout(() => {
           this.syncPendingOperations();
-        }, 1000); // 1000ms kechikish (network stabilize bo'lishi uchun)
+        }, 500); // 500ms kechikish (tezroq sync)
       }
     });
   }
@@ -74,86 +74,47 @@ export class SyncManager {
       // Sort operations: delete last, create/update first
       const sortedOps = this.sortOperations(operations);
 
-      // Process each operation
-      for (const operation of sortedOps) {
-        try {
-          await this.syncOperation(operation);
-          
-          // ✅ SUCCESS: O'chirish - vazifa bajarildi
-          await this.queueManager.clearOperation(operation.id!);
-          result.success++;
-        } catch (error: any) {
-          // 400 Bad Request - Validation xatolari (retry qilmaslik)
-          if (error?.response?.status === 400) {
-            const errorMessage = error?.response?.data?.message || error.message;
-            
-            // Duplicate licensePlate xatosi
-            if (errorMessage.includes('allaqachon mavjud') || errorMessage.includes('already exists')) {
-              console.warn(`⚠️ Duplicate data, removing from queue: ${operation.action} ${operation.collection}`, errorMessage);
-              await this.queueManager.clearOperation(operation.id!);
-              result.failed++;
-              result.errors.push(`${operation.action} ${operation.collection}: ${errorMessage} (o'chirildi)`);
-              continue;
-            }
-            
-            // Temp ID xatosi
-            if (errorMessage.includes('Temp ID') || errorMessage.includes('temp_')) {
-              console.warn(`⚠️ Temp ID error, removing from queue: ${operation.action} ${operation.collection}`);
-              await this.queueManager.clearOperation(operation.id!);
-              result.failed++;
-              result.errors.push(`${operation.action} ${operation.collection}: Temp ID xatosi (o'chirildi)`);
-              continue;
-            }
-            
-            // Boshqa validation xatolari - 3 marta retry
-            if (!operation.retryCount) operation.retryCount = 0;
-            operation.retryCount++;
-            
-            if (operation.retryCount >= 3) {
-              console.error(`❌ Validation error after 3 retries, removing: ${operation.action} ${operation.collection}`, errorMessage);
-              await this.queueManager.clearOperation(operation.id!);
-              result.failed++;
-              result.errors.push(`${operation.action} ${operation.collection}: ${errorMessage} (3 marta urinildi, o'chirildi)`);
-            } else {
-              result.failed++;
-              result.errors.push(`${operation.action} ${operation.collection}: ${errorMessage} (retry ${operation.retryCount}/3)`);
-            }
-            continue;
-          }
-          
-          // ERR_NETWORK_CHANGED is normal when switching from offline to online
-          if (error?.message?.includes('network change') || error?.code === 'ERR_NETWORK_CHANGED') {
-            // Retry once after network change
-            await new Promise(resolve => setTimeout(resolve, 1000));
+      // OPTIMIZATION: Parallel sync - bir vaqtda 3 ta operatsiya
+      const BATCH_SIZE = 3;
+      
+      for (let i = 0; i < sortedOps.length; i += BATCH_SIZE) {
+        const batch = sortedOps.slice(i, i + BATCH_SIZE);
+        
+        // Parallel sync qilish
+        const batchResults = await Promise.allSettled(
+          batch.map(async (operation) => {
             try {
               await this.syncOperation(operation);
               await this.queueManager.clearOperation(operation.id!);
+              return { success: true, operation };
+            } catch (error: any) {
+              return { success: false, operation, error };
+            }
+          })
+        );
+        
+        // Natijalarni qayta ishlash
+        for (const batchResult of batchResults) {
+          if (batchResult.status === 'fulfilled') {
+            const { success, operation, error } = batchResult.value;
+            
+            if (success) {
               result.success++;
-              continue; // Skip error handling
-            } catch (retryError: any) {
-              result.failed++;
-              result.errors.push(`${operation.action} ${operation.collection}: ${retryError.message}`);
-              console.error(`Failed to sync after retry ${operation.action} ${operation.collection}:`, retryError);
+            } else {
+              // Xatolarni handle qilish
+              await this.handleSyncError(operation, error, result);
             }
           } else {
+            // Promise rejected
             result.failed++;
-            result.errors.push(`${operation.action} ${operation.collection}: ${error.message}`);
-            console.error(`Failed to sync ${operation.action} ${operation.collection}:`, error);
-          }
-          
-          // Retry count increment for other errors
-          if (!operation.retryCount) operation.retryCount = 0;
-          operation.retryCount++;
-          
-          // If too many retries, remove from queue
-          if (operation.retryCount > 3) {
-            console.error(`❌ Too many retries (${operation.retryCount}), removing from queue: ${operation.action} ${operation.collection}`);
-            await this.queueManager.clearOperation(operation.id!);
+            result.errors.push(`Batch sync error: ${batchResult.reason}`);
           }
         }
         
-        // Batch operatsiyalar orasida pauza (network stabilization)
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Batch'lar orasida pauza (100ms)
+        if (i + BATCH_SIZE < sortedOps.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       }
 
       // DARHOL notify listeners (UI yangilanishi uchun)
@@ -199,10 +160,10 @@ export class SyncManager {
         throw error;
       }
       
-      // ERR_NETWORK_CHANGED - network o'zgarganda retry qilish
+      // ERR_NETWORK_CHANGED - network o'zgarganda retry qilish (tezroq)
       if (error.message?.includes('ERR_NETWORK_CHANGED') || error.message?.includes('network changed')) {
-        // 1 sekund kutib retry qilish
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // 500ms kutib retry qilish (tezroq)
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // Retry
         switch (action) {
@@ -334,6 +295,79 @@ export class SyncManager {
       // Otherwise, sort by timestamp (oldest first)
       return a.timestamp - b.timestamp;
     });
+  }
+
+  /**
+   * Handle sync error for a single operation
+   */
+  private async handleSyncError(operation: SyncOperation, error: any, result: SyncResult): Promise<void> {
+    // 400 Bad Request - Validation xatolari (retry qilmaslik)
+    if (error?.response?.status === 400) {
+      const errorMessage = error?.response?.data?.message || error.message;
+      
+      // Duplicate licensePlate xatosi
+      if (errorMessage.includes('allaqachon mavjud') || errorMessage.includes('already exists')) {
+        console.warn(`⚠️ Duplicate data, removing from queue: ${operation.action} ${operation.collection}`, errorMessage);
+        await this.queueManager.clearOperation(operation.id!);
+        result.failed++;
+        result.errors.push(`${operation.action} ${operation.collection}: ${errorMessage} (o'chirildi)`);
+        return;
+      }
+      
+      // Temp ID xatosi
+      if (errorMessage.includes('Temp ID') || errorMessage.includes('temp_')) {
+        console.warn(`⚠️ Temp ID error, removing from queue: ${operation.action} ${operation.collection}`);
+        await this.queueManager.clearOperation(operation.id!);
+        result.failed++;
+        result.errors.push(`${operation.action} ${operation.collection}: Temp ID xatosi (o'chirildi)`);
+        return;
+      }
+      
+      // Boshqa validation xatolari - 3 marta retry
+      if (!operation.retryCount) operation.retryCount = 0;
+      operation.retryCount++;
+      
+      if (operation.retryCount >= 3) {
+        console.error(`❌ Validation error after 3 retries, removing: ${operation.action} ${operation.collection}`, errorMessage);
+        await this.queueManager.clearOperation(operation.id!);
+        result.failed++;
+        result.errors.push(`${operation.action} ${operation.collection}: ${errorMessage} (3 marta urinildi, o'chirildi)`);
+      } else {
+        result.failed++;
+        result.errors.push(`${operation.action} ${operation.collection}: ${errorMessage} (retry ${operation.retryCount}/3)`);
+      }
+      return;
+    }
+    
+    // ERR_NETWORK_CHANGED is normal when switching from offline to online
+    if (error?.message?.includes('network change') || error?.code === 'ERR_NETWORK_CHANGED') {
+      // Retry once after network change - tezroq (500ms)
+      await new Promise(resolve => setTimeout(resolve, 500));
+      try {
+        await this.syncOperation(operation);
+        await this.queueManager.clearOperation(operation.id!);
+        result.success++;
+        return; // Skip error handling
+      } catch (retryError: any) {
+        result.failed++;
+        result.errors.push(`${operation.action} ${operation.collection}: ${retryError.message}`);
+        console.error(`Failed to sync after retry ${operation.action} ${operation.collection}:`, retryError);
+      }
+    } else {
+      result.failed++;
+      result.errors.push(`${operation.action} ${operation.collection}: ${error.message}`);
+      console.error(`Failed to sync ${operation.action} ${operation.collection}:`, error);
+    }
+    
+    // Retry count increment for other errors
+    if (!operation.retryCount) operation.retryCount = 0;
+    operation.retryCount++;
+    
+    // If too many retries, remove from queue
+    if (operation.retryCount > 3) {
+      console.error(`❌ Too many retries (${operation.retryCount}), removing from queue: ${operation.action} ${operation.collection}`);
+      await this.queueManager.clearOperation(operation.id!);
+    }
   }
 
   /**

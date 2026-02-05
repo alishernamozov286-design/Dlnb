@@ -21,6 +21,20 @@ export const useTasks = (filters?: { status?: string; assignedTo?: string; car?:
       return response.data;
     },
     enabled: shouldFetch,
+    retry: (failureCount, error: any) => {
+      // ERR_NETWORK_CHANGED uchun 2 marta retry
+      if (error?.code === 'ERR_NETWORK_CHANGED' || error?.message?.includes('network change')) {
+        return failureCount < 2;
+      }
+      // Boshqa xatolar uchun 1 marta retry
+      return failureCount < 1;
+    },
+    retryDelay: (attemptIndex) => {
+      // Har bir retry orasida 500ms kutish (tezroq)
+      return Math.min(500 * (attemptIndex + 1), 2000);
+    },
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: false, // Focus'da avtomatik refetch qilmaslik
   });
 };
 
@@ -33,6 +47,20 @@ export const useCarTasks = (carId: string) => {
       return response.data;
     },
     enabled: !!carId && !carId.startsWith('temp_'), // Temp ID'lar uchun so'rov yubormaslik
+    retry: (failureCount, error: any) => {
+      // ERR_NETWORK_CHANGED uchun 2 marta retry
+      if (error?.code === 'ERR_NETWORK_CHANGED' || error?.message?.includes('network change')) {
+        return failureCount < 2;
+      }
+      // Boshqa xatolar uchun 1 marta retry
+      return failureCount < 1;
+    },
+    retryDelay: (attemptIndex) => {
+      // Har bir retry orasida 500ms kutish (tezroq)
+      return Math.min(500 * (attemptIndex + 1), 2000);
+    },
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: false, // Focus'da avtomatik refetch qilmaslik
   });
 };
 

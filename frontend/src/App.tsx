@@ -26,13 +26,45 @@ import MasterWarehouse from '@/pages/master/Warehouse';
 import ApprenticeTasks from '@/pages/apprentice/Tasks';
 import ApprenticeAchievements from '@/pages/apprentice/Achievements';
 
-// Create a client
+// Create a client with improved error handling
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 1,
+      retry: (failureCount, error: any) => {
+        // ERR_NETWORK_CHANGED uchun 2 marta retry
+        if (error?.code === 'ERR_NETWORK_CHANGED' || 
+            error?.message?.includes('network change') ||
+            error?.message?.includes('ERR_NETWORK_CHANGED')) {
+          return failureCount < 2;
+        }
+        // Network xatolari uchun 1 marta retry
+        if (error?.code === 'ERR_NETWORK' || 
+            error?.code === 'ECONNABORTED' ||
+            error?.message?.includes('timeout')) {
+          return failureCount < 1;
+        }
+        // Boshqa xatolar uchun retry qilmaslik
+        return false;
+      },
+      retryDelay: (attemptIndex) => {
+        // Har bir retry orasida 500ms kutish (tezroq)
+        return Math.min(500 * (attemptIndex + 1), 2000);
+      },
       refetchOnWindowFocus: false,
+      refetchOnReconnect: true, // Network qayta ulanganida refetch qilish
+    },
+    mutations: {
+      retry: (failureCount, error: any) => {
+        // ERR_NETWORK_CHANGED uchun 1 marta retry
+        if (error?.code === 'ERR_NETWORK_CHANGED' || 
+            error?.message?.includes('network change')) {
+          return failureCount < 1;
+        }
+        // Boshqa xatolar uchun retry qilmaslik
+        return false;
+      },
+      retryDelay: 500, // 500ms kutish (tezroq)
     },
   },
 });

@@ -32,15 +32,26 @@ api.interceptors.response.use(
     const config = error.config;
     
     // ERR_NETWORK_CHANGED - network o'zgarganda retry qilish
-    if (error.message?.includes('ERR_NETWORK_CHANGED') || error.message?.includes('network changed')) {
-      // Agar retry qilinmagan bo'lsa, 1 marta retry qilish
-      if (!config._retry) {
-        config._retry = true;
+    if (error.message?.includes('ERR_NETWORK_CHANGED') || 
+        error.message?.includes('network change') ||
+        error.code === 'ERR_NETWORK_CHANGED') {
+      // Agar retry qilinmagan bo'lsa, 2 marta retry qilish
+      if (!config._retryCount) {
+        config._retryCount = 0;
+      }
+      
+      if (config._retryCount < 2) {
+        config._retryCount++;
         
-        // 500ms kutib retry qilish (network stabilize bo'lishi uchun)
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Tezroq kutish: 500ms, 1000ms
+        const delay = 500 * config._retryCount;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        console.log(`🔄 Retry ${config._retryCount}/2 after ERR_NETWORK_CHANGED: ${config.url}`);
         
         return api.request(config);
+      } else {
+        console.error(`❌ Failed after 2 retries (ERR_NETWORK_CHANGED): ${config.url}`);
       }
     }
     

@@ -178,6 +178,63 @@ if (existingCar) {
 }
 ```
 
+### 7. ERR_NETWORK_CHANGED Global Handling
+
+**API Interceptor (api.ts):**
+```typescript
+// ERR_NETWORK_CHANGED - 2 marta retry
+if (error.message?.includes('ERR_NETWORK_CHANGED')) {
+  if (!config._retryCount) config._retryCount = 0;
+  
+  if (config._retryCount < 2) {
+    config._retryCount++;
+    const delay = 1000 * config._retryCount; // 1s, 2s
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return api.request(config);
+  }
+}
+```
+
+**React Query Config (App.tsx):**
+```typescript
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error: any) => {
+        // ERR_NETWORK_CHANGED uchun 2 marta retry
+        if (error?.code === 'ERR_NETWORK_CHANGED') {
+          return failureCount < 2;
+        }
+        return false;
+      },
+      retryDelay: (attemptIndex) => {
+        return Math.min(1000 * (attemptIndex + 1), 3000);
+      },
+      refetchOnReconnect: true,
+    },
+  },
+});
+```
+
+**Tasks Hook (useTasks.ts):**
+```typescript
+export const useTasks = (filters) => {
+  return useQuery({
+    queryKey: ['tasks', filters],
+    queryFn: async () => { /* ... */ },
+    retry: (failureCount, error: any) => {
+      if (error?.code === 'ERR_NETWORK_CHANGED') {
+        return failureCount < 2;
+      }
+      return failureCount < 1;
+    },
+    retryDelay: (attemptIndex) => {
+      return Math.min(1000 * (attemptIndex + 1), 3000);
+    },
+  });
+};
+```
+
 ## 📊 Natijalar
 
 ### Yaxshilanishlar:
