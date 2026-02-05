@@ -17,6 +17,7 @@ import {
 import { t } from '@/lib/transliteration';
 import Sidebar from './Sidebar';
 import { OfflineIndicator } from './OfflineIndicator';
+import { SyncStatusNotification } from './SyncStatusNotification';
 import { useLowStockCount } from '@/hooks/useSpareParts';
 import { useCompletedTasksCount } from '@/hooks/useTasks';
 import { useOverdueDebtsCount } from '@/hooks/useDebts';
@@ -125,6 +126,9 @@ const Layout: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Offline Indicator */}
       <OfflineIndicator />
+      
+      {/* Sync Status Notification */}
+      <SyncStatusNotification />
       
       {/* Mobile Header */}
       {isMobile && !isWarehousePage && (

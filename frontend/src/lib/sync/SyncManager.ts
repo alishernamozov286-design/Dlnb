@@ -24,13 +24,13 @@ export class SyncManager {
     this.queueManager = QueueManager.getInstance();
     this.storage = IndexedDBManager.getInstance();
 
-    // Listen to network changes - DARHOL sync qilish
+    // Listen to network changes - Network stabilize bo'lishini kutish
     this.networkManager.onStatusChange((status) => {
       if (status.isOnline && !this.isSyncing) {
-        // Darhol sync qilish (kechikmasdan)
+        // Network to'liq stabilize bo'lishini kutish
         setTimeout(() => {
           this.syncPendingOperations();
-        }, 100); // 100ms kechikish (network stabilize bo'lishi uchun)
+        }, 1000); // 1000ms kechikish (network stabilize bo'lishi uchun)
       }
     });
   }
@@ -83,10 +83,48 @@ export class SyncManager {
           await this.queueManager.clearOperation(operation.id!);
           result.success++;
         } catch (error: any) {
+          // 400 Bad Request - Validation xatolari (retry qilmaslik)
+          if (error?.response?.status === 400) {
+            const errorMessage = error?.response?.data?.message || error.message;
+            
+            // Duplicate licensePlate xatosi
+            if (errorMessage.includes('allaqachon mavjud') || errorMessage.includes('already exists')) {
+              console.warn(`⚠️ Duplicate data, removing from queue: ${operation.action} ${operation.collection}`, errorMessage);
+              await this.queueManager.clearOperation(operation.id!);
+              result.failed++;
+              result.errors.push(`${operation.action} ${operation.collection}: ${errorMessage} (o'chirildi)`);
+              continue;
+            }
+            
+            // Temp ID xatosi
+            if (errorMessage.includes('Temp ID') || errorMessage.includes('temp_')) {
+              console.warn(`⚠️ Temp ID error, removing from queue: ${operation.action} ${operation.collection}`);
+              await this.queueManager.clearOperation(operation.id!);
+              result.failed++;
+              result.errors.push(`${operation.action} ${operation.collection}: Temp ID xatosi (o'chirildi)`);
+              continue;
+            }
+            
+            // Boshqa validation xatolari - 3 marta retry
+            if (!operation.retryCount) operation.retryCount = 0;
+            operation.retryCount++;
+            
+            if (operation.retryCount >= 3) {
+              console.error(`❌ Validation error after 3 retries, removing: ${operation.action} ${operation.collection}`, errorMessage);
+              await this.queueManager.clearOperation(operation.id!);
+              result.failed++;
+              result.errors.push(`${operation.action} ${operation.collection}: ${errorMessage} (3 marta urinildi, o'chirildi)`);
+            } else {
+              result.failed++;
+              result.errors.push(`${operation.action} ${operation.collection}: ${errorMessage} (retry ${operation.retryCount}/3)`);
+            }
+            continue;
+          }
+          
           // ERR_NETWORK_CHANGED is normal when switching from offline to online
           if (error?.message?.includes('network change') || error?.code === 'ERR_NETWORK_CHANGED') {
             // Retry once after network change
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
             try {
               await this.syncOperation(operation);
               await this.queueManager.clearOperation(operation.id!);
@@ -103,16 +141,19 @@ export class SyncManager {
             console.error(`Failed to sync ${operation.action} ${operation.collection}:`, error);
           }
           
-          // Retry count increment
-          if (operation.retryCount !== undefined) {
-            operation.retryCount++;
-            
-            // If too many retries, remove from queue
-            if (operation.retryCount > 5) {
-              await this.queueManager.clearOperation(operation.id!);
-            }
+          // Retry count increment for other errors
+          if (!operation.retryCount) operation.retryCount = 0;
+          operation.retryCount++;
+          
+          // If too many retries, remove from queue
+          if (operation.retryCount > 3) {
+            console.error(`❌ Too many retries (${operation.retryCount}), removing from queue: ${operation.action} ${operation.collection}`);
+            await this.queueManager.clearOperation(operation.id!);
           }
         }
+        
+        // Batch operatsiyalar orasida pauza (network stabilization)
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
 
       // DARHOL notify listeners (UI yangilanishi uchun)
@@ -153,6 +194,11 @@ export class SyncManager {
           throw new Error(`Unknown action: ${action}`);
       }
     } catch (error: any) {
+      // 400 Bad Request - Validation xatolari (throw qilish, yuqorida handle qilinadi)
+      if (error?.response?.status === 400) {
+        throw error;
+      }
+      
       // ERR_NETWORK_CHANGED - network o'zgarganda retry qilish
       if (error.message?.includes('ERR_NETWORK_CHANGED') || error.message?.includes('network changed')) {
         // 1 sekund kutib retry qilish
@@ -197,11 +243,27 @@ export class SyncManager {
         
         // Save server item
         await this.storage.save(collection, [serverItem]);
+        
+        console.log(`✅ Temp item replaced with server item: ${data._id} -> ${serverItem._id}`);
       } else {
         // Just update with server data
         await this.storage.save(collection, [serverItem]);
       }
     } catch (error: any) {
+      // 400 Bad Request - Validation xatolari
+      if (error?.response?.status === 400) {
+        const errorMessage = error?.response?.data?.message || error.message;
+        console.error(`❌ Validation error creating ${collection}:`, errorMessage);
+        
+        // Agar temp ID bo'lsa, IndexedDB'dan o'chirish
+        if (data._id && data._id.startsWith('temp_')) {
+          console.warn(`⚠️ Removing temp item due to validation error: ${data._id}`);
+          await this.storage.delete(collection, data._id);
+        }
+        
+        throw error;
+      }
+      
       console.error(`Failed to create ${collection}:`, error);
       throw error;
     }

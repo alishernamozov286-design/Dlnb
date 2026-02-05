@@ -13,9 +13,27 @@ export const createCar = async (req: AuthRequest, res: Response) => {
     console.log('📦 Parts:', parts);
     console.log('💰 ServiceItems:', serviceItems);
     
+    // Validation: Required fields
+    if (!make || !carModel || !licensePlate || !ownerName || !ownerPhone) {
+      return res.status(400).json({ 
+        message: 'Barcha majburiy maydonlarni to\'ldiring',
+        missingFields: {
+          make: !make,
+          carModel: !carModel,
+          licensePlate: !licensePlate,
+          ownerName: !ownerName,
+          ownerPhone: !ownerPhone
+        }
+      });
+    }
+    
     const existingCar = await Car.findOne({ licensePlate });
     if (existingCar) {
-      return res.status(400).json({ message: 'Bu davlat raqami bilan mashina allaqachon mavjud' });
+      return res.status(400).json({ 
+        message: 'Bu davlat raqami bilan mashina allaqachon mavjud',
+        duplicateField: 'licensePlate',
+        existingCarId: existingCar._id
+      });
     }
 
     // Zapchastlar sonini kamaytirish
