@@ -1,0 +1,25 @@
+{
+  "name": "Dalnoboy Shop",
+  "short_name": "Dalnoboy",
+  "description": "Dalnoboy Shop - Avtomobil servislari uchun professional boshqaruv tizimi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
