@@ -61,7 +61,9 @@ const corsOptions = {
       'http://127.0.0.1:5173',
       'http://127.0.0.1:5177',
       'https://biznes.uz',
-      'http://biznes.uz'
+      'http://biznes.uz',
+      'https://dalnaboyshop.biznesjon.uz',
+      'http://dalnaboyshop.biznesjon.uz'
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
