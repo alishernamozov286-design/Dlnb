@@ -41,6 +41,9 @@ build/
 */dist/
 */build/
 
+# PWA Development files (auto-generated)
+frontend/dev-dist/
+
 # IMPORTANT: PWA files are generated during build
 # They should NOT be in git, but MUST be built on VPS
 # Run: npm run build in frontend folder on VPS

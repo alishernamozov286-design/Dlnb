@@ -218,7 +218,7 @@ const MasterWarehouse: React.FC = memo(() => {
               {t("Tovarlar ro'yxati", language)}
             </h3>
 
-            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
               {isLoading ? (
                 <div className="text-center py-12">
                   <div className="relative mx-auto w-16 h-16 mb-4">
@@ -241,80 +241,86 @@ const MasterWarehouse: React.FC = memo(() => {
                   </p>
                 </div>
               ) : (
-                filteredParts.map((part: any) => (
-                  <div 
-                    key={part._id} 
-                    className={`group relative overflow-hidden rounded-2xl p-4 sm:p-5 border-2 hover:shadow-xl transition-all duration-300 hover:scale-[1.01] ${
-                      part.quantity <= part.minQuantity
-                        ? 'border-red-200 bg-gradient-to-r from-red-50 via-pink-50/50 to-transparent hover:border-red-300'
-                        : 'border-purple-200 bg-gradient-to-r from-purple-50 via-indigo-50/50 to-transparent hover:border-purple-300'
-                    }`}
-                  >
-                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                      part.quantity <= part.minQuantity ? 'bg-gradient-to-b from-red-500 to-pink-600' : 'bg-gradient-to-b from-purple-500 to-indigo-600'
-                    }`}></div>
-                    
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-4 flex-1">
-                        <div className={`p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow ${
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredParts.map((part: any) => (
+                    <div 
+                      key={part._id} 
+                      className={`group relative overflow-hidden rounded-xl p-4 border-2 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] ${
+                        part.quantity <= part.minQuantity
+                          ? 'border-red-200 bg-gradient-to-br from-red-50 to-pink-50 hover:border-red-300'
+                          : 'border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50 hover:border-purple-300'
+                      }`}
+                    >
+                      {/* Top Badge */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className={`p-2 rounded-lg shadow-md ${
                           part.quantity <= part.minQuantity ? 'bg-gradient-to-br from-red-500 to-pink-600' : 'bg-gradient-to-br from-purple-500 to-indigo-600'
                         }`}>
-                          <Package className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                          <Package className="h-4 w-4 text-white" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-bold text-base sm:text-lg text-gray-900 truncate">
-                              {part.name}
-                            </h4>
-                            {part.code && (
-                              <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-gray-100 text-gray-700 border border-gray-200">
-                                {part.code}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                            <span className="flex items-center gap-1.5 bg-white/80 px-2.5 py-1 rounded-lg">
-                              <TrendingDown className="h-3.5 w-3.5" />
-                              {part.quantity} {part.unit}
-                            </span>
-                            <span className="font-bold text-purple-600">
-                              {formatCurrency(part.price)} / {part.unit}
-                            </span>
-                          </div>
-                          {part.quantity <= part.minQuantity && (
-                            <div className="flex items-center gap-1.5 text-xs text-red-600 font-semibold">
-                              <AlertCircle className="h-3.5 w-3.5" />
-                              {t('Minimal miqdor:', language)} {part.minQuantity} {part.unit}
-                            </div>
-                          )}
+                        {part.code && (
+                          <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-white/80 text-gray-700 border border-gray-200">
+                            {part.code}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Product Name */}
+                      <h4 className="font-bold text-base text-gray-900 mb-2 line-clamp-2 min-h-[3rem]">
+                        {part.name}
+                      </h4>
+
+                      {/* Quantity & Price */}
+                      <div className="space-y-2 mb-3">
+                        <div className="flex items-center justify-between bg-white/60 rounded-lg p-2">
+                          <span className="text-xs text-gray-600">{t('Miqdor', language)}</span>
+                          <span className="text-sm font-bold text-gray-900">
+                            {part.quantity} {part.unit}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between bg-white/60 rounded-lg p-2">
+                          <span className="text-xs text-gray-600">{t('Narx', language)}</span>
+                          <span className="text-sm font-bold text-purple-600">
+                            {formatCurrency(part.price)}
+                          </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+
+                      {/* Low Stock Warning */}
+                      {part.quantity <= part.minQuantity && (
+                        <div className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mb-3 bg-red-100/50 rounded-lg p-2">
+                          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="truncate">{t('Kam qoldi', language)}</span>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-3 gap-1.5 pt-3 border-t border-gray-200">
                         <button
                           onClick={() => handleView(part)}
-                          className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                          className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors flex items-center justify-center"
                           title={t('Ko\'rish', language)}
                         >
                           <Eye className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleEdit(part)}
-                          className="p-2 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200 transition-colors"
+                          className="p-2 bg-yellow-100 text-yellow-600 rounded-lg hover:bg-yellow-200 transition-colors flex items-center justify-center"
                           title={t('Tahrirlash', language)}
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(part)}
-                          className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                          className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center"
                           title={t('O\'chirish', language)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
