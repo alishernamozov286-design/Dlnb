@@ -22,7 +22,6 @@ const SellSparePartModal: React.FC<SellSparePartModalProps> = ({
   const [sellingPrice, setSellingPrice] = useState(sparePart?.sellingPrice || 0);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const language = (localStorage.getItem('language') as 'latin' | 'cyrillic') || 'latin';
@@ -86,8 +85,7 @@ const SellSparePartModal: React.FC<SellSparePartModalProps> = ({
         quantity,
         sellingPrice,
         customerName: customerName.trim() || undefined,
-        customerPhone: customerPhone.trim() || undefined,
-        notes: notes.trim() || undefined
+        customerPhone: customerPhone.trim() || undefined
       });
 
       toast.success(t('Zapchast muvaffaqiyatli sotildi', language));
