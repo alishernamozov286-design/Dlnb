@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { servicesRepository } from '@/lib/repositories/ServicesRepository';
+import { NetworkManager } from '@/lib/sync/NetworkManager';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface Service {
   _id: string;
@@ -14,13 +17,68 @@ export interface Service {
 }
 
 export const useServices = () => {
-  return useQuery({
-    queryKey: ['services'],
-    queryFn: async () => {
-      const response = await api.get('/services');
-      return response.data;
-    },
-  });
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
+  const networkManager = NetworkManager.getInstance();
+
+  const loadServices = useCallback(async () => {
+    try {
+      setLoading(true);
+      const networkStatus = networkManager.getStatus();
+      setIsOnline(networkStatus.isOnline);
+
+      if (networkStatus.isOnline) {
+        // Online: API dan olish va saqlash
+        try {
+          const response = await api.get('/services');
+          const fetchedServices = response.data.services || [];
+          
+          // IndexedDB ga saqlash (offline uchun)
+          for (const service of fetchedServices) {
+            await servicesRepository.db.put('carServices', service);
+          }
+          
+          setServices(fetchedServices);
+        } catch (error) {
+          console.error('Online xizmatlarni yuklashda xatolik:', error);
+          // Xatolik bo'lsa, offline dan yuklash
+          const offlineServices = await servicesRepository.getAll();
+          setServices(offlineServices);
+        }
+      } else {
+        // Offline: IndexedDB dan olish
+        const offlineServices = await servicesRepository.getAll();
+        setServices(offlineServices);
+      }
+    } catch (error) {
+      console.error('Xizmatlarni yuklashda xatolik:', error);
+      setServices([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [networkManager]);
+
+  useEffect(() => {
+    loadServices();
+
+    // Network status o'zgarganda qayta yuklash
+    const unsubscribe = networkManager.onStatusChange((status) => {
+      setIsOnline(status.isOnline);
+      if (status.isOnline) {
+        loadServices();
+      }
+    });
+
+    return unsubscribe;
+  }, [loadServices, networkManager]);
+
+  return {
+    data: { services },
+    isLoading: loading,
+    isOnline,
+    refetch: loadServices
+  };
 };
 
 export const usePublicServices = () => {

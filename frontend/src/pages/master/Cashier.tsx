@@ -4,7 +4,6 @@ import {
   TrendingUp,
   TrendingDown,
   Plus,
-
   Calendar,
   BarChart3,
   Eye,
@@ -12,7 +11,8 @@ import {
   CreditCard,
   Smartphone,
   Clock,
-  History
+  History,
+  Package
 } from 'lucide-react';
 import { t } from '@/lib/transliteration';
 import { formatCurrency } from '@/lib/utils';
@@ -144,6 +144,14 @@ const MasterCashier: React.FC = memo(() => {
               </div>
               
               <div className="flex flex-wrap gap-2 sm:gap-3 w-full lg:w-auto">
+                <Link 
+                  to="/app/master/warehouse"
+                  className="group relative overflow-hidden px-5 py-3 bg-gradient-to-r from-purple-500 via-purple-600 to-indigo-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center gap-2 flex-1 sm:flex-initial justify-center"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+                  <Package className="h-4 w-4 relative z-10" />
+                  <span className="relative z-10">{t('Ombor', language)}</span>
+                </Link>
                 <button
                   onClick={() => setIsResetModalOpen(true)}
                   className="group relative overflow-hidden px-5 py-3 bg-gradient-to-r from-red-500 via-red-600 to-pink-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center gap-2 flex-1 sm:flex-initial justify-center"

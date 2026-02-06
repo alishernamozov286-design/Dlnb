@@ -103,6 +103,14 @@ export const createTask = async (req: AuthRequest, res: Response) => {
       apprenticePercentage 
     } = req.body;
 
+    console.log('📥 Vazifa yaratish so\'rovi:', {
+      title,
+      assignedTo,
+      assignments,
+      car,
+      payment
+    });
+
     const User = require('../models/User').default;
 
     const taskData: any = {
@@ -120,6 +128,8 @@ export const createTask = async (req: AuthRequest, res: Response) => {
 
     // Yangi tizim: Ko'p shogirdlar
     if (assignments && Array.isArray(assignments) && assignments.length > 0) {
+      console.log('👥 Ko\'p shogirdlar tizimi ishlatilmoqda:', assignments);
+      
       const totalPayment = payment || 0;
       const apprenticeCount = assignments.length;
       const allocatedAmount = totalPayment / apprenticeCount; // Har biriga teng bo'lish
@@ -127,8 +137,16 @@ export const createTask = async (req: AuthRequest, res: Response) => {
       // Har bir shogird uchun hisoblash
       const assignmentsWithPercentage = await Promise.all(
         assignments.map(async (assignment: any) => {
+          if (!assignment.apprenticeId) {
+            throw new Error('apprenticeId maydoni yo\'q');
+          }
+          
           // Shogirtning foizini User modelidan olish
           const apprentice = await User.findById(assignment.apprenticeId);
+          if (!apprentice) {
+            throw new Error(`Shogird topilmadi: ${assignment.apprenticeId}`);
+          }
+          
           const percentage = apprentice?.percentage || 50; // Agar foiz yo'q bo'lsa, default 50%
           
           const earning = (allocatedAmount * percentage) / 100;
@@ -153,8 +171,14 @@ export const createTask = async (req: AuthRequest, res: Response) => {
     } 
     // Eski tizim: Bitta shogird
     else if (assignedTo) {
+      console.log('👤 Bitta shogird tizimi ishlatilmoqda:', assignedTo);
+      
       // Shogirtning foizini User modelidan olish
       const apprentice = await User.findById(assignedTo);
+      if (!apprentice) {
+        return res.status(400).json({ message: `Shogird topilmadi: ${assignedTo}` });
+      }
+      
       const percentage = apprentice?.percentage || 50; // Agar foiz yo'q bo'lsa, default 50%
       
       const apprenticeEarning = (payment * percentage) / 100;
@@ -167,12 +191,14 @@ export const createTask = async (req: AuthRequest, res: Response) => {
       taskData.apprenticeEarning = apprenticeEarning;
       taskData.masterEarning = masterEarning;
     } else {
-      return res.status(400).json({ message: 'Kamida bitta shogird tanlang' });
+      return res.status(400).json({ message: 'Kamida bitta shogird tanlang (assignedTo yoki assignments)' });
     }
 
     const task = new Task(taskData);
     await task.save();
     await task.populate(['assignedTo', 'assignedBy', 'car', 'service', 'assignments.apprentice']);
+
+    console.log('✅ Vazifa muvaffaqiyatli yaratildi:', task._id);
 
     res.status(201).json({
       message: 'Task created successfully',

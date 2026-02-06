@@ -30,15 +30,32 @@ const InstallPWA: React.FC = () => {
     const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(iOS);
 
+    // Debug: Log PWA status
+    const debugInfo = {
+      isHTTPS: window.location.protocol === 'https:',
+      isLocalhost: window.location.hostname === 'localhost',
+      isStandalone: isInStandaloneMode,
+      isIOS: iOS,
+      hasServiceWorker: 'serviceWorker' in navigator,
+      userAgent: navigator.userAgent,
+      dismissed: localStorage.getItem('pwa-install-dismissed'),
+      dismissedIOS: localStorage.getItem('pwa-install-dismissed-ios'),
+    };
+    console.log('[PWA] Status:', debugInfo);
+
     // Listen for beforeinstallprompt event (Android/Chrome)
     const handleBeforeInstallPrompt = (e: Event) => {
+      console.log('[PWA] ✅ beforeinstallprompt event fired!');
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       
       // Check if user dismissed before
       const dismissed = localStorage.getItem('pwa-install-dismissed');
       if (!dismissed) {
+        console.log('[PWA] Showing install prompt');
         setShowInstallPrompt(true);
+      } else {
+        console.log('[PWA] User previously dismissed');
       }
     };
 
@@ -48,9 +65,24 @@ const InstallPWA: React.FC = () => {
     if (iOS && !isInStandaloneMode) {
       const dismissed = localStorage.getItem('pwa-install-dismissed-ios');
       if (!dismissed) {
+        console.log('[PWA] iOS detected, showing install instructions');
         setShowInstallPrompt(true);
       }
     }
+
+    // Log after 3 seconds if no event
+    setTimeout(() => {
+      if (!deferredPrompt && !iOS) {
+        console.warn('[PWA] ⚠️ beforeinstallprompt event not fired after 3s');
+        console.log('[PWA] Possible reasons:');
+        console.log('  1. Already installed');
+        console.log('  2. Not HTTPS (except localhost)');
+        console.log('  3. Manifest.json not valid');
+        console.log('  4. Service Worker not registered');
+        console.log('  5. Browser does not support PWA');
+        console.log('  6. User previously dismissed and criteria not met again');
+      }
+    }, 3000);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -81,7 +113,11 @@ const InstallPWA: React.FC = () => {
   };
 
   // Don't show if already installed
-  if (isStandalone || !showInstallPrompt) {
+  if (isStandalone) {
+    return null;
+  }
+
+  if (!showInstallPrompt) {
     return null;
   }
 

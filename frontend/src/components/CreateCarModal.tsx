@@ -7,6 +7,8 @@ import { useCreateTask } from '@/hooks/useTasks';
 import { formatCurrency } from '@/lib/utils';
 import { t } from '@/lib/transliteration';
 import toast from 'react-hot-toast';
+import api from '@/lib/api';
+
 interface CreateCarModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -84,7 +86,15 @@ const CreateCarModal: React.FC<CreateCarModalProps> = ({ isOpen, onClose }) => {
 
   const { createCar, isOnline } = useCarsNew();
   const createTaskMutation = useCreateTask();
-  const { data: usersData } = useUsers();
+  const { data: usersData, isLoading: usersLoading } = useUsers();
+  
+  // Faqat shogirtlarni filtrlash
+  const apprentices = React.useMemo(() => {
+    const users = usersData?.users || [];
+    const filtered = users.filter((u: any) => u.role === 'apprentice');
+    console.log('👥 Shogirtlar:', filtered);
+    return filtered;
+  }, [usersData]);
   
   useBodyScrollLock(isOpen);
 
@@ -278,7 +288,7 @@ const CreateCarModal: React.FC<CreateCarModalProps> = ({ isOpen, onClose }) => {
           assignments: task.assignments.map(assignment => {
             if (assignment.id === assignmentId) {
               if (field === 'apprenticeId' && value) {
-                const selectedApprentice = (usersData?.users || []).find((a: any) => a._id === value);
+                const selectedApprentice = apprentices.find((a: any) => a._id === value);
                 const apprenticePercentage = selectedApprentice?.percentage || 50;
                 return { 
                   ...assignment, 
@@ -411,25 +421,32 @@ const CreateCarModal: React.FC<CreateCarModalProps> = ({ isOpen, onClose }) => {
         updatedAt: new Date().toISOString()
       };
 
-      const createdCar = await createCar(carData);
+      // 1. Mashinani yaratish
+      console.log('📤 Mashina yaratilmoqda:', carData);
       
-      // ID ni to'g'ri olish
-      const carId = createdCar._id;
+      let carId: string;
+      
+      // To'g'ridan-to'g'ri API ga so'rov yuborish (optimistic update o'rniga)
+      try {
+        const response = await api.post('/cars', carData);
+        carId = response.data.car._id;
+        console.log('✅ Mashina yaratildi, ID:', carId);
+      } catch (err: any) {
+        console.error('❌ Mashina yaratishda xatolik:', err);
+        throw err;
+      }
       
       if (!carId) {
-        console.error('Mashina ID topilmadi!');
-        alert('Mashina yaratildi, lekin ID topilmadi');
-        return;
+        throw new Error('Mashina yaratildi, lekin ID topilmadi');
       }
 
       // 2. Agar vazifalar bo'lsa, ularni yaratish
       if (tasks.length > 0) {
         setIsCreatingTasks(true);
         for (const task of tasks) {
-          const taskData = {
+          const taskData: any = {
             title: task.title,
             description: task.description || task.title,
-            assignments: task.assignments,
             car: carId,
             // Faqat haqiqiy service ID bo'lsa yuborish (temp- bilan boshlanmasa)
             service: task.service && !task.service.startsWith('temp-') ? task.service : undefined,
@@ -438,6 +455,15 @@ const CreateCarModal: React.FC<CreateCarModalProps> = ({ isOpen, onClose }) => {
             estimatedHours: task.estimatedHours,
             payment: task.payment
           };
+          
+          // Assignments formatini to'g'rilash
+          if (task.assignments && task.assignments.length > 0) {
+            taskData.assignments = task.assignments.map(a => ({
+              apprenticeId: a.apprenticeId
+            }));
+          }
+          
+          console.log('📤 Vazifa yuborilmoqda:', taskData);
           
           await createTaskMutation.mutateAsync(taskData);
         }
@@ -466,11 +492,15 @@ const CreateCarModal: React.FC<CreateCarModalProps> = ({ isOpen, onClose }) => {
       window.location.reload();
     } catch (error: any) {
       console.error('Error creating car:', error);
+      console.error('Error response:', error.response?.data);
+      
       if (error.response?.data?.errors) {
         const errorMessages = error.response.data.errors.map((err: any) => err.msg).join(', ');
-        alert(`Xatolik: ${errorMessages}`);
+        toast.error(`Xatolik: ${errorMessages}`);
+      } else if (error.response?.data?.message) {
+        toast.error(`Xatolik: ${error.response.data.message}`);
       } else {
-        alert(error.response?.data?.message || error.message || 'Xatolik yuz berdi');
+        toast.error(error.message || 'Xatolik yuz berdi');
       }
     }
   };
@@ -1339,9 +1369,12 @@ const CreateCarModal: React.FC<CreateCarModalProps> = ({ isOpen, onClose }) => {
                                         value={assignment.apprenticeId}
                                         onChange={(e) => updateApprentice(task.id, assignment.id, 'apprenticeId', e.target.value)}
                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 bg-white"
+                                        disabled={usersLoading}
                                       >
-                                        <option value="">{t('Tanlang', language)}</option>
-                                        {(usersData?.users || []).map((apprentice: any) => (
+                                        <option value="">
+                                          {usersLoading ? t('Yuklanmoqda...', language) : t('Tanlang', language)}
+                                        </option>
+                                        {apprentices.map((apprentice: any) => (
                                           <option key={apprentice._id} value={apprentice._id}>
                                             {apprentice.name} ({apprentice.percentage || 50}%)
                                           </option>

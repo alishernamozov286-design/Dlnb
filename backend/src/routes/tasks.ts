@@ -23,7 +23,6 @@ router.post('/', authenticate, [
   body('assignedTo').optional().isMongoId().withMessage('Noto\'g\'ri shogird ID'),
   body('assignments').optional().isArray().withMessage('Assignments array bo\'lishi kerak'),
   body('assignments.*.apprenticeId').optional().isMongoId().withMessage('Noto\'g\'ri shogird ID'),
-  body('assignments.*.percentage').optional().isInt({ min: 0, max: 100 }).withMessage('Foiz 0-100 oralig\'ida bo\'lishi kerak'),
   body('car').isMongoId().withMessage('Noto\'g\'ri mashina ID'),
   body('priority').isIn(['low', 'medium', 'high', 'urgent']).withMessage('Noto\'g\'ri muhimlik darajasi'),
   body('dueDate').isISO8601().withMessage('Noto\'g\'ri sana formati'),

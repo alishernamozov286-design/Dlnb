@@ -13,6 +13,7 @@ import AIChatWidget from '@/components/AIChatWidget';
 import OfflineRouteGuard from '@/components/OfflineRouteGuard';
 import OfflineTransitionModal from '@/components/OfflineTransitionModal';
 import InstallPWA from '@/components/InstallPWA';
+import React from 'react';
 
 // Master pages
 import MasterTasks from '@/pages/master/Tasks';
@@ -281,6 +282,27 @@ function AppRoutes() {
 }
 
 function App() {
+  // Userlarni offline uchun sync qilish
+  React.useEffect(() => {
+    const syncUsers = async () => {
+      try {
+        const { usersRepository } = await import('@/lib/repositories/UsersRepository');
+        await usersRepository.syncApprentices();
+        console.log('✅ Userlar offline uchun saqlandi');
+      } catch (error) {
+        console.error('❌ Userlarni sync qilishda xatolik:', error);
+      }
+    };
+
+    // Ilova ochilganda sync qilish
+    syncUsers();
+
+    // Har 5 daqiqada sync qilish (online bo'lsa)
+    const interval = setInterval(syncUsers, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
