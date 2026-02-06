@@ -22,12 +22,14 @@ export const OfflineTransitionModal = () => {
   useEffect(() => {
     const networkManager = NetworkManager.getInstance();
     let previousOnlineState: boolean | null = null;
+    let isInitialized = false;
     
     // Listen to network status changes
     const unsubscribe = networkManager.onStatusChange((status) => {
-      // Skip first call (initialization)
-      if (previousOnlineState === null) {
+      // Skip first call (initialization) va refresh paytida
+      if (!isInitialized) {
         previousOnlineState = status.isOnline;
+        isInitialized = true;
         return;
       }
       
@@ -41,8 +43,8 @@ export const OfflineTransitionModal = () => {
         setIsVisible(true);
         setProgress(100);
         
-        // Auto-close duration: 2 seconds for online, 3 seconds for offline
-        const duration = nowOnline ? 2000 : 3000; // Tezroq yopilish online uchun
+        // Auto-close duration: 0.8 seconds for online, 1.5 seconds for offline (ULTRA FAST)
+        const duration = nowOnline ? 800 : 1500; // Ultra tez yopilish
         const interval = 30;
         const step = (interval / duration) * 100;
         

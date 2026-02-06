@@ -26,6 +26,8 @@
     "add-total-earnings": "ts-node src/scripts/addTotalEarnings.ts",
     "test-salary": "ts-node src/scripts/testSalaryPayment.ts",
     "reset-apprentice-data": "ts-node src/scripts/resetApprenticeData.ts",
+    "reset-apprentice-earnings": "ts-node src/scripts/resetApprenticeEarnings.ts",
+    "reset-apprentice-all": "ts-node src/scripts/resetApprenticeEarningsAndTasks.ts",
     "clear-archived-cars": "ts-node src/scripts/clearArchivedCars.ts",
     "clear-cars": "ts-node src/scripts/clearCars.ts",
     "migrate:clientid": "ts-node src/scripts/addClientIdToExisting.ts"

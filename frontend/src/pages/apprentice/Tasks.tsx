@@ -18,7 +18,8 @@ import {
   FileText,
   Sparkles,
   XCircle,
-  Circle
+  Circle,
+  DollarSign
 } from 'lucide-react';
 import { t } from '@/lib/transliteration';
 
@@ -443,7 +444,8 @@ const ApprenticeTasks: React.FC = () => {
                           if (myAssignment && myAssignment.earning > 0) {
                             return (
                               <span className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-bold rounded-lg bg-blue-100 text-blue-700">
-                                💰 <span className="ml-1">{new Intl.NumberFormat('uz-UZ').format(myAssignment.earning)}</span>
+                                <DollarSign className="h-3.5 w-3.5" />
+                                <span className="ml-1">{new Intl.NumberFormat('uz-UZ').format(myAssignment.earning)}</span>
                                 <span className="hidden sm:inline ml-1">{t('so\'m', language)}</span>
                                 {myAssignment.percentage && (
                                   <span className="ml-1 text-blue-600">({myAssignment.percentage}%)</span>
@@ -457,7 +459,8 @@ const ApprenticeTasks: React.FC = () => {
                         if (task.apprenticeEarning && task.apprenticeEarning > 0) {
                           return (
                             <span className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-bold rounded-lg bg-blue-100 text-blue-700">
-                              💰 <span className="ml-1">{new Intl.NumberFormat('uz-UZ').format(task.apprenticeEarning)}</span>
+                              <DollarSign className="h-3.5 w-3.5" />
+                              <span className="ml-1">{new Intl.NumberFormat('uz-UZ').format(task.apprenticeEarning)}</span>
                               <span className="hidden sm:inline ml-1">{t('so\'m', language)}</span>
                               {task.apprenticePercentage && (
                                 <span className="ml-1 text-blue-600">({task.apprenticePercentage}%)</span>
@@ -469,7 +472,8 @@ const ApprenticeTasks: React.FC = () => {
                         // Hech narsa yo'q
                         return (
                           <span className="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-bold rounded-lg bg-gray-100 text-gray-500">
-                            💰 <span className="ml-1">0</span>
+                            <DollarSign className="h-3.5 w-3.5" />
+                            <span className="ml-1">0</span>
                             <span className="hidden sm:inline ml-1">{t('so\'m', language)}</span>
                           </span>
                         );

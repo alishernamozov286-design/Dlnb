@@ -34,6 +34,96 @@ export const getPublicStats = async (req: Request, res: Response) => {
   }
 };
 
+export const getApprenticeEarnings = async (req: AuthRequest, res: Response) => {
+  try {
+    const apprenticeId = req.user!._id;
+
+    // Shogirdning asosiy ma'lumotlari
+    const apprentice = await User.findById(apprenticeId).select('name earnings totalEarnings');
+
+    if (!apprentice) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shogird topilmadi'
+      });
+    }
+
+    // Joriy oylik (User modelidagi earnings)
+    const currentMonthEarnings = apprentice.earnings || 0;
+
+    // Jami daromad (barcha vaqt)
+    const totalEarnings = apprentice.totalEarnings || 0;
+
+    // Tasdiqlangan vazifalar (eski tizim)
+    const oldApprovedTasks = await Task.find({
+      assignedTo: apprenticeId,
+      status: 'approved',
+      apprenticeEarning: { $exists: true, $gt: 0 }
+    })
+      .select('title apprenticeEarning payment apprenticePercentage approvedAt car')
+      .populate('car', 'make carModel licensePlate ownerName')
+      .sort({ approvedAt: -1 });
+
+    // Tasdiqlangan vazifalar (yangi tizim)
+    const newApprovedTasks = await Task.find({
+      'assignments.apprentice': apprenticeId,
+      status: 'approved'
+    })
+      .select('title assignments payment approvedAt car')
+      .populate('car', 'make carModel licensePlate ownerName')
+      .sort({ approvedAt: -1 });
+
+    // Barcha tasdiqlangan vazifalarni birlashtirish
+    const allApprovedTasks = [
+      ...oldApprovedTasks.map(task => ({
+        _id: task._id,
+        title: task.title,
+        car: task.car,
+        earning: task.apprenticeEarning,
+        totalPayment: task.payment,
+        percentage: task.apprenticePercentage,
+        approvedAt: task.approvedAt || new Date()
+      })),
+      ...newApprovedTasks.map(task => {
+        const assignment = task.assignments?.find(
+          (a: any) => a.apprentice.toString() === apprenticeId.toString()
+        );
+        return {
+          _id: task._id,
+          title: task.title,
+          car: task.car,
+          earning: assignment?.earning || 0,
+          totalPayment: task.payment,
+          percentage: assignment?.percentage,
+          approvedAt: task.approvedAt || new Date()
+        };
+      })
+    ].sort((a, b) => new Date(b.approvedAt).getTime() - new Date(a.approvedAt).getTime());
+
+    // Tasdiqlangan vazifalardan jami daromad
+    const approvedTasksEarnings = allApprovedTasks.reduce((sum, task) => sum + (task.earning || 0), 0);
+
+    res.json({
+      success: true,
+      data: {
+        name: apprentice.name,
+        currentMonthEarnings, // Joriy oylik
+        totalEarnings, // Jami daromad (barcha vaqt)
+        approvedTasksCount: allApprovedTasks.length,
+        approvedTasksEarnings, // Tasdiqlangan vazifalardan jami
+        approvedTasks: allApprovedTasks
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ Shogird daromadlarini olishda xatolik:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Daromadlarni olishda xatolik',
+      error: error.message
+    });
+  }
+};
+
 export const getEarningsStats = async (req: AuthRequest, res: Response) => {
   try {
     const masterId = req.user!._id;
@@ -145,14 +235,27 @@ export const getEarningsStats = async (req: AuthRequest, res: Response) => {
           ...newTaskDetails
         ];
 
+        // Barcha vazifalarni birlashtirish va saralash
+        const sortedTasks = [
+          ...oldApprovedTasks.map(task => ({
+            _id: task._id,
+            title: task.title,
+            payment: task.apprenticeEarning, // Shogirdning ulushi
+            totalPayment: task.payment, // Umumiy to'lov
+            percentage: task.apprenticePercentage, // Foiz
+            approvedAt: task.approvedAt || new Date()
+          })),
+          ...newTaskDetails
+        ].sort((a, b) => new Date(b.approvedAt).getTime() - new Date(a.approvedAt).getTime());
+
         return {
           _id: apprentice._id,
           name: apprentice.name,
           earnings: totalEarnings,
           savedEarnings: savedEarnings, // User modelidagi
           taskEarnings: taskEarnings, // Vazifalardan (foiz asosida)
-          taskCount: allTasks.length,
-          tasks: allTasks
+          taskCount: sortedTasks.length,
+          tasks: sortedTasks
         };
       })
     );

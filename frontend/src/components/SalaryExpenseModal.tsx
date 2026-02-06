@@ -47,21 +47,18 @@ const SalaryExpenseModal: React.FC<SalaryExpenseModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Shogirdni tanlash
+  // Shogirdni tanlash - faqat ism va ID, summa bo'sh
   const handleApprenticeSelect = (userId: string) => {
     const selectedApprentice = apprentices.find((app: any) => app._id === userId);
     
     if (selectedApprentice) {
-      const earnings = selectedApprentice.earnings || 0;
-      const formatted = formatNumber(earnings.toString());
-      
       setEmployee({
         id: '1',
         userId: selectedApprentice._id,
         name: selectedApprentice.name,
-        baseSalary: earnings,
-        baseSalaryDisplay: formatted,
-        totalSalary: earnings
+        baseSalary: 0,
+        baseSalaryDisplay: '',
+        totalSalary: 0
       });
     }
   };
@@ -82,7 +79,7 @@ const SalaryExpenseModal: React.FC<SalaryExpenseModalProps> = ({
     e.preventDefault();
     
     if (employee.totalSalary <= 0) {
-      alert(t('Maosh summasi 0 dan katta bo\'lishi kerak', language));
+      alert(t('To\'lov summasi 0 dan katta bo\'lishi kerak', language));
       return;
     }
 
@@ -114,7 +111,7 @@ ${t('Maosh', language)}: ${formatCurrency(employee.totalSalary)}`;
       amount: employee.totalSalary,
       description: fullDescription,
       paymentMethod: paymentMethod,
-      apprenticeId: employee.userId // Shogird ID sini yuborish
+      apprenticeId: employee.userId
     });
   };
 
@@ -164,10 +161,18 @@ ${t('Maosh', language)}: ${formatCurrency(employee.totalSalary)}`;
                   <option value="">{t('Tanlang...', language)}</option>
                   {apprentices.map((apprentice: any) => (
                     <option key={apprentice._id} value={apprentice._id}>
-                      {apprentice.name} - {formatCurrency(apprentice.earnings || 0)}
+                      {apprentice.name}
                     </option>
                   ))}
                 </select>
+                {employee.userId && (
+                  <p className="text-xs text-blue-600 mt-2 flex items-center gap-1">
+                    <DollarSign className="h-3 w-3" />
+                    {t('Hozirgi balans', language)}: {formatCurrency(
+                      apprentices.find((a: any) => a._id === employee.userId)?.earnings || 0
+                    )} {t('(faqat ma\'lumot uchun)', language)}
+                  </p>
+                )}
               </div>
 
               {/* Xodim ismi */}
@@ -188,34 +193,37 @@ ${t('Maosh', language)}: ${formatCurrency(employee.totalSalary)}`;
                 />
               </div>
 
-              {/* Maosh summasi */}
+              {/* To'lov summasi */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
                   <DollarSign className="h-4 w-4 text-green-600" />
-                  {t('Maosh summasi', language)} *
+                  {t('To\'lov summasi', language)} *
                 </label>
                 <input
                   type="text"
                   value={employee.baseSalaryDisplay}
                   onChange={(e) => updateEmployeeAmount(e.target.value)}
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none transition-all text-lg font-semibold ${
-                    employee.userId 
-                      ? 'bg-gray-100 border-gray-300 text-gray-700' 
-                      : 'border-gray-200 focus:border-purple-500'
-                  }`}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 transition-all text-lg font-semibold"
                   placeholder="1,000,000"
                   required
                 />
-                {employee.userId && (
-                  <p className="text-xs text-blue-600 mt-2 flex items-center gap-1">
-                    <DollarSign className="h-3 w-3" />
-                    {t('Shogirdning tasdiqlangan puli', language)}: {formatCurrency(employee.baseSalary)}
-                  </p>
-                )}
-                {employee.userId && employee.totalSalary > employee.baseSalary && (
-                  <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
-                    ⚠️ {t('To\'lov summasi shogirdning daromadidan ko\'p', language)}
-                  </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {t('Shogirdga to\'lanadigan summani qo\'lda kiriting', language)}
+                </p>
+                {employee.userId && employee.totalSalary > 0 && (
+                  <div className="mt-2">
+                    {(() => {
+                      const apprenticeEarnings = apprentices.find((a: any) => a._id === employee.userId)?.earnings || 0;
+                      if (employee.totalSalary > apprenticeEarnings) {
+                        return (
+                          <p className="text-xs text-orange-600 flex items-center gap-1">
+                            ⚠️ {t('To\'lov summasi shogirdning daromadidan ko\'p', language)} ({formatCurrency(apprenticeEarnings)})
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                 )}
               </div>
 

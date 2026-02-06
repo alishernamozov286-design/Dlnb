@@ -24,14 +24,18 @@ export function SyncStatusNotification() {
     // Listen to sync results
     const unsubscribe = syncManager.onSyncComplete((result) => {
       setSyncResult(result);
-      setShow(true);
       setIsSyncing(false);
 
-      // Auto hide after 10 seconds if successful
-      if (result.failed === 0 && result.success > 0) {
-        setTimeout(() => {
-          setShow(false);
-        }, 10000);
+      // Faqat xatolar bo'lsa yoki muvaffaqiyatli operatsiyalar 3 tadan ko'p bo'lsa ko'rsatish
+      if (result.failed > 0 || result.success > 3) {
+        setShow(true);
+        
+        // Auto hide after 5 seconds if successful
+        if (result.failed === 0 && result.success > 0) {
+          setTimeout(() => {
+            setShow(false);
+          }, 5000);
+        }
       }
     });
 

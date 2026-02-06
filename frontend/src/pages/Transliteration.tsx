@@ -1,5 +1,5 @@
 import TransliterationConverter from '@/components/TransliterationConverter';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Transliteration() {
@@ -37,7 +37,9 @@ export default function Transliteration() {
           </div>
 
           <div className="bg-white rounded-xl p-6 shadow-lg border border-gray-100">
-            <div className="text-3xl font-bold text-purple-600 mb-2">⚡</div>
+            <div className="mb-2">
+              <Zap className="h-8 w-8 text-purple-600" />
+            </div>
             <h3 className="font-semibold text-gray-900 mb-1">Tezkor</h3>
             <p className="text-sm text-gray-600">
               Real vaqtda transliteratsiya, hech qanday kechikishsiz

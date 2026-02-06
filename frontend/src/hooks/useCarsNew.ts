@@ -74,7 +74,7 @@ export function useCarsNew() {
     }
   }, [queueManager]);
 
-  // Network status listener - AVTOMATIK REFRESH on network change
+  // Network status listener - INSTANT REFRESH on network change (0.1s)
   useEffect(() => {
     let refreshTimeout: NodeJS.Timeout | null = null;
     
@@ -88,28 +88,28 @@ export function useCarsNew() {
         clearTimeout(refreshTimeout);
       }
       
-      // OFFLINE → ONLINE: 5 soniya kutib refresh
+      // OFFLINE → ONLINE: INSTANT refresh (100ms)
       if (status.isOnline && wasOffline) {
         // 1. Pending count'ni darhol yangilash
         updatePendingCount();
         
-        // 2. 5 soniya kutib refresh
+        // 2. 100ms kutib INSTANT refresh (0.1 soniya)
         refreshTimeout = setTimeout(async () => {
           await loadCars(true); // silent reload, no loading spinner
           updatePendingCount();
-        }, 5000); // 5 seconds
+        }, 100); // 0.1 second - INSTANT!
         
         // 3. Sync avtomatik boshlanadi (SyncManager ichida)
         // 4. Sync tugagandan keyin yana refresh bo'ladi (syncManager.onSyncComplete orqali)
       }
       
-      // ONLINE → OFFLINE: 5 soniya kutib refresh
+      // ONLINE → OFFLINE: INSTANT refresh (100ms)
       if (!status.isOnline && wasOnline) {
-        // 5 soniya kutib refresh
+        // 100ms kutib INSTANT refresh
         refreshTimeout = setTimeout(async () => {
           await loadCars(true); // silent reload, no loading spinner
           updatePendingCount();
-        }, 5000); // 5 seconds
+        }, 100); // 0.1 second - INSTANT!
       }
     });
 

@@ -533,10 +533,14 @@ export const approveTask = async (req: AuthRequest, res: Response) => {
           console.log(`  → Shogird ${assignment.apprentice} ga ${assignment.earning} so'm qo'shilmoqda`);
           const updatedUser = await User.findByIdAndUpdate(
             assignment.apprentice,
-            { $inc: { earnings: assignment.earning } },
+            { 
+              $inc: { 
+                earnings: assignment.earning
+              } 
+            },
             { new: true }
           );
-          console.log(`  ✅ Yangilandi! Yangi balans: ${updatedUser?.earnings}`);
+          console.log(`  ✅ Yangilandi! Joriy oylik: ${updatedUser?.earnings}, Jami: ${updatedUser?.totalEarnings}`);
         }
       } 
       // Eski tizim: Bitta shogird
@@ -545,10 +549,14 @@ export const approveTask = async (req: AuthRequest, res: Response) => {
         console.log(`  → Shogird ${task.assignedTo} ga ${task.apprenticeEarning} so'm qo'shilmoqda`);
         const updatedUser = await User.findByIdAndUpdate(
           task.assignedTo,
-          { $inc: { earnings: task.apprenticeEarning } },
+          { 
+            $inc: { 
+              earnings: task.apprenticeEarning
+            } 
+          },
           { new: true }
         );
-        console.log(`  ✅ Yangilandi! Yangi balans: ${updatedUser?.earnings}`);
+        console.log(`  ✅ Yangilandi! Joriy oylik: ${updatedUser?.earnings}, Jami: ${updatedUser?.totalEarnings}`);
       } else {
         console.log('⚠️ Hech qanday shogird topilmadi yoki earning 0!');
       }

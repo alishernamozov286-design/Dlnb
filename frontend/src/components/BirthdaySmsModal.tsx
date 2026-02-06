@@ -38,10 +38,10 @@ const BirthdaySmsModal: React.FC<BirthdaySmsModalProps> = ({
 
   // SMS shablonlari
   const templates = [
-    `Tabriklaymiz, ${customerName}! Tug'ilgan kuningiz bilan! 🎂🎉 Avtojon Service`,
-    `Hurmatli ${customerName}! Sizni tug'ilgan kuningiz bilan chin dildan tabriklaymiz! Sog'lik va baxt tilaymiz! 🎉 Avtojon Service`,
-    `${customerName}, tug'ilgan kuningiz muborak! Omad va muvaffaqiyatlar tilaymiz! 🎂 Avtojon Service`,
-    `Aziz ${customerName}! Tug'ilgan kuningiz bilan! Har doim sog' bo'ling! 🎉🎂 Avtojon Service`
+    `Tabriklaymiz, ${customerName}! Tug'ilgan kuningiz bilan! Avtojon Service`,
+    `Hurmatli ${customerName}! Sizni tug'ilgan kuningiz bilan chin dildan tabriklaymiz! Sog'lik va baxt tilaymiz! Avtojon Service`,
+    `${customerName}, tug'ilgan kuningiz muborak! Omad va muvaffaqiyatlar tilaymiz! Avtojon Service`,
+    `Aziz ${customerName}! Tug'ilgan kuningiz bilan! Har doim sog' bo'ling! Avtojon Service`
   ];
 
   const handleSendSms = () => {

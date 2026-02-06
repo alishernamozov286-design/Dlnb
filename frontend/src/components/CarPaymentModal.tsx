@@ -343,8 +343,9 @@ const CarPaymentModal: React.FC<CarPaymentModalProps> = ({ isOpen, onClose, car,
 
           {/* Naqd to'lov */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              💵 {t("Naqd to'lov", language)}
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-green-600" />
+              <span>{t("Naqd to'lov", language)}</span>
             </label>
             <input
               type="text"
@@ -432,7 +433,10 @@ const CarPaymentModal: React.FC<CarPaymentModalProps> = ({ isOpen, onClose, car,
               <div className="space-y-2 text-sm">
                 {Number(cashAmount) > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">💵 {t("Naqd", language)}:</span>
+                    <span className="text-gray-600 flex items-center gap-1.5">
+                      <DollarSign className="h-4 w-4 text-green-600" />
+                      <span>{t("Naqd", language)}:</span>
+                    </span>
                     <span className="font-bold text-green-600">{formatCurrency(Number(cashAmount))}</span>
                   </div>
                 )}

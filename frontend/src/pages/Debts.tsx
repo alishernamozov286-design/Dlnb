@@ -3,7 +3,7 @@ import { useDebts } from '@/hooks/useDebts';
 import { useDebtSummary } from '@/hooks/useDebts';
 import EditDebtModal from '@/components/EditDebtModal';
 import DeleteDebtModal from '@/components/DeleteDebtModal';
-import { DollarSign, TrendingUp, TrendingDown, Calendar, Phone, Eye, Edit, Trash2, X, FileText } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Calendar, Phone, Eye, Edit, Trash2, X, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Debt } from '@/types';
 import { t } from '@/lib/transliteration';
@@ -32,47 +32,38 @@ const Debts: React.FC = () => {
   // Faqat to'lanmagan va qisman to'langan qarzlarni ko'rsatish
   const debts = allDebts.filter((debt: Debt) => debt.status !== 'paid');
 
-  const getStatusConfig = (status: string) => {
-    switch (status) {
-      case 'pending': 
-        return { 
-          bg: 'bg-gradient-to-r from-amber-50 to-yellow-50', 
-          text: 'text-amber-700',
-          border: 'border-amber-200',
-          dot: 'bg-amber-500'
-        };
-      case 'partial': 
-        return { 
-          bg: 'bg-gradient-to-r from-blue-50 to-cyan-50', 
-          text: 'text-blue-700',
-          border: 'border-blue-200',
-          dot: 'bg-blue-500'
-        };
-      case 'paid': 
-        return { 
-          bg: 'bg-gradient-to-r from-blue-50 to-cyan-50', 
-          text: 'text-blue-700',
-          border: 'border-blue-200',
-          dot: 'bg-blue-500'
-        };
-      default: 
-        return { 
-          bg: 'bg-gray-50', 
-          text: 'text-gray-700',
-          border: 'border-gray-200',
-          dot: 'bg-gray-500'
-        };
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'pending': return t('To\'lanmagan', language);
-      case 'partial': return t('Qisman to\'langan', language);
-      case 'paid': return t('To\'langan', language);
-      default: return status;
-    }
-  };
+  // const getStatusConfig = (status: string) => {
+  //   switch (status) {
+  //     case 'pending': 
+  //       return { 
+  //         bg: 'bg-gradient-to-r from-amber-50 to-yellow-50', 
+  //         text: 'text-amber-700',
+  //         border: 'border-amber-200',
+  //         dot: 'bg-amber-500'
+  //       };
+  //     case 'partial': 
+  //       return { 
+  //         bg: 'bg-gradient-to-r from-blue-50 to-cyan-50', 
+  //         text: 'text-blue-700',
+  //         border: 'border-blue-200',
+  //         dot: 'bg-blue-500'
+  //       };
+  //     case 'paid': 
+  //       return { 
+  //         bg: 'bg-gradient-to-r from-blue-50 to-cyan-50', 
+  //         text: 'text-blue-700',
+  //         border: 'border-blue-200',
+  //         dot: 'bg-blue-500'
+  //       };
+  //     default: 
+  //       return { 
+  //         bg: 'bg-gray-50', 
+  //         text: 'text-gray-700',
+  //         border: 'border-gray-200',
+  //         dot: 'bg-gray-500'
+  //       };
+  //   }
+  // };
 
   const getTypeText = (type: string) => {
     return type === 'receivable' ? t('Bizga qarzi bor', language) : t('Bizning qarzimiz', language);
@@ -86,7 +77,6 @@ const Debts: React.FC = () => {
     const isReceivable = debt.type === 'receivable';
     const remainingAmount = debt.amount - debt.paidAmount;
     const progressPercentage = (debt.paidAmount / debt.amount) * 100;
-    const statusConfig = getStatusConfig(debt.status);
 
     return (
       <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -125,16 +115,6 @@ const Debts: React.FC = () => {
                 >
                   <X className="h-6 w-6" />
                 </button>
-              </div>
-
-              {/* Status Badge */}
-              <div className="relative mt-6">
-                <div className={`inline-flex ${statusConfig.bg} ${statusConfig.border} border-2 px-4 py-2 rounded-full items-center space-x-2 shadow-lg`}>
-                  <div className={`w-2.5 h-2.5 rounded-full ${statusConfig.dot} animate-pulse`}></div>
-                  <span className={`text-sm font-bold ${statusConfig.text}`}>
-                    {getStatusText(debt.status)}
-                  </span>
-                </div>
               </div>
             </div>
 
@@ -391,10 +371,20 @@ const Debts: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-semibold text-sky-600 uppercase tracking-wide">{t("Holat", language)}</p>
-                  <p className={`text-xs font-medium mt-1 ${
+                  <p className={`text-xs font-medium mt-1 flex items-center gap-1 ${
                     ((debtSummary as any)?.netPosition || 0) >= 0 ? 'text-blue-600' : 'text-indigo-600'
                   }`}>
-                    {((debtSummary as any)?.netPosition || 0) >= 0 ? t('✓ Ijobiy', language) : t('⚠ Salbiy', language)}
+                    {((debtSummary as any)?.netPosition || 0) >= 0 ? (
+                      <>
+                        <CheckCircle className="h-3 w-3" />
+                        <span>{t('Ijobiy', language)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="h-3 w-3" />
+                        <span>{t('Salbiy', language)}</span>
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -469,7 +459,6 @@ const Debts: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:gap-6 sm:grid-cols-2 xl:grid-cols-3">
             {debts.map((debt: Debt) => {
-              const statusConfig = getStatusConfig(debt.status);
               const isReceivable = debt.type === 'receivable';
               const remainingAmount = debt.amount - debt.paidAmount;
               const progressPercentage = (debt.paidAmount / debt.amount) * 100;
@@ -501,13 +490,6 @@ const Debts: React.FC = () => {
                             {getTypeText(debt.type)}
                           </p>
                         </div>
-                      </div>
-                      {/* Status Badge - Extra Compact */}
-                      <div className={`${statusConfig.bg} ${statusConfig.border} border px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md flex items-center space-x-1 shadow-sm flex-shrink-0 self-start`}>
-                        <div className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full ${statusConfig.dot} animate-pulse`}></div>
-                        <span className={`text-[9px] sm:text-[10px] font-bold ${statusConfig.text} uppercase tracking-wide whitespace-nowrap`}>
-                          {getStatusText(debt.status)}
-                        </span>
                       </div>
                     </div>
                   </div>

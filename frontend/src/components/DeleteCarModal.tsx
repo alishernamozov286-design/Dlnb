@@ -29,6 +29,13 @@ const DeleteCarModal: React.FC<DeleteCarModalProps> = ({ isOpen, onClose, car })
       setIsLoading(true);
       await deleteCar(car._id);
       onClose();
+      
+      // Faqat online rejimda sahifani yangilash
+      if (navigator.onLine) {
+        setTimeout(() => {
+          window.location.reload();
+        }, 300);
+      }
     } catch (error) {
       console.error('Error deleting car:', error);
     } finally {

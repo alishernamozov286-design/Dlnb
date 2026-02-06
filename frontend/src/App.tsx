@@ -12,7 +12,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import AIChatWidget from '@/components/AIChatWidget';
 import OfflineRouteGuard from '@/components/OfflineRouteGuard';
 import OfflineTransitionModal from '@/components/OfflineTransitionModal';
-// import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+import InstallPWA from '@/components/InstallPWA';
 
 // Master pages
 import MasterTasks from '@/pages/master/Tasks';
@@ -288,7 +288,7 @@ function App() {
           <AppRoutes />
           <AIChatWidget />
           <OfflineTransitionModal />
-          {/* <PWAInstallPrompt /> */}
+          <InstallPWA />
         </AuthProvider>
         <Toaster 
           position="top-right"

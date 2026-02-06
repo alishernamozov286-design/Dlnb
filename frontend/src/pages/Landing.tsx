@@ -17,6 +17,7 @@ import {
   ChevronLeft,  
   ChevronRight,
   Heart,
+  Car,
 } from 'lucide-react';
 import GoogleMap from '@/components/GoogleMap';
 import { t } from '@/lib/transliteration';
@@ -641,8 +642,9 @@ export default function Landing() {
                     <Sparkles className="w-5 h-5 text-white" />
                   </div>
                   <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl rounded-tl-none p-4 max-w-[85%]">
-                    <p className="text-sm text-gray-800 leading-relaxed">
-                      {t('Assalomu alaykum! Men Dalnoboy Shop AI – avto servis yordamchisiman. Sizga qanday yordam bera olaman?', language)} 🚗
+                    <p className="text-sm text-gray-800 leading-relaxed flex items-center gap-2">
+                      <span>{t('Assalomu alaykum! Men Dalnoboy Shop AI – avto servis yordamchisiman. Sizga qanday yordam bera olaman?', language)}</span>
+                      <Car className="h-4 w-4 text-blue-600 flex-shrink-0" />
                     </p>
                   </div>
                 </div>

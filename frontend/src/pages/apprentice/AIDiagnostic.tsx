@@ -227,8 +227,9 @@ export default function AIDiagnostic() {
           {!loading && advice && (
             <div className="prose prose-sm max-w-none">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-blue-800 font-medium">
-                  ✨ AI tomonidan yaratilgan maslahat
+                <p className="text-sm text-blue-800 font-medium flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-blue-600" />
+                  <span>AI tomonidan yaratilgan maslahat</span>
                 </p>
               </div>
               <div className="text-gray-800 space-y-2 whitespace-pre-wrap">

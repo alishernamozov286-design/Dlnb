@@ -17,7 +17,6 @@ import {
 import { t } from '@/lib/transliteration';
 import Sidebar from './Sidebar';
 import { OfflineIndicator } from './OfflineIndicator';
-import { SyncStatusNotification } from './SyncStatusNotification';
 import { OfflineTransitionModal } from './OfflineTransitionModal';
 import { useLowStockCount } from '@/hooks/useSpareParts';
 import { useCompletedTasksCount } from '@/hooks/useTasks';
@@ -127,9 +126,6 @@ const Layout: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Offline Indicator */}
       <OfflineIndicator />
-      
-      {/* Sync Status Notification */}
-      <SyncStatusNotification />
       
       {/* Offline Transition Modal - Professional UI */}
       <OfflineTransitionModal />

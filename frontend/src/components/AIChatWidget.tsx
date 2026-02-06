@@ -124,7 +124,7 @@ export default function AIChatWidget() {
     // Show welcome message
     setMessages([{
       role: 'assistant',
-      content: t('Assalomu alaykum! Men Biznes AI – avto servis yordamchisiman. Sizga qanday yordam bera olaman?', language) + ' 🚗',
+      content: t('Assalomu alaykum! Men Biznes AI – avto servis yordamchisiman. Sizga qanday yordam bera olaman?', language),
       timestamp: new Date()
     }]);
   }, [language]);
@@ -241,7 +241,7 @@ export default function AIChatWidget() {
       await chatApi.clearHistory(sessionId);
       setMessages([{
         role: 'assistant',
-        content: t('Assalomu alaykum! Men Biznes AI – avto servis yordamchisiman. Sizga qanday yordam bera olaman?', language) + ' 🚗',
+        content: t('Assalomu alaykum! Men Biznes AI – avto servis yordamchisiman. Sizga qanday yordam bera olaman?', language),
         timestamp: new Date()
       }]);
       toast.success(t('Chat tarixi tozalandi', language));

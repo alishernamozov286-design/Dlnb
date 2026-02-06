@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTasks } from '@/hooks/useTasks';
 import { 
@@ -8,11 +8,57 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { t } from '@/lib/transliteration';
+import api from '@/lib/api';
+
+interface ApprovedTask {
+  _id: string;
+  title: string;
+  car: {
+    make: string;
+    carModel: string;
+    licensePlate: string;
+    ownerName: string;
+  };
+  earning: number;
+  totalPayment: number;
+  percentage: number;
+  approvedAt: string;
+}
+
+interface ApprenticeEarningsData {
+  name: string;
+  currentMonthEarnings: number;
+  totalEarnings: number;
+  approvedTasksCount: number;
+  approvedTasksEarnings: number;
+  approvedTasks: ApprovedTask[];
+}
 
 const ApprenticeAchievements: React.FC = () => {
   const { user } = useAuth();
   const { data: tasks } = useTasks();
   const [timeFilter, setTimeFilter] = useState<'today' | 'yesterday' | 'week' | 'month' | 'year' | 'all'>('all');
+  const [earningsData, setEarningsData] = useState<ApprenticeEarningsData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Backend'dan daromad ma'lumotlarini olish
+  useEffect(() => {
+    const fetchEarnings = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/stats/apprentice/earnings');
+        if (response.data.success) {
+          setEarningsData(response.data.data);
+        }
+      } catch (error) {
+        console.error('Daromad ma\'lumotlarini olishda xatolik:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEarnings();
+  }, []);
 
   // localStorage'dan tilni o'qish
   const language = React.useMemo<'latin' | 'cyrillic'>(() => {
@@ -44,6 +90,8 @@ const ApprenticeAchievements: React.FC = () => {
 
   // Vaqt bo'yicha filtrlash
   const getFilteredTasks = () => {
+    if (!earningsData) return [];
+    
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterday = new Date(today);
@@ -55,7 +103,7 @@ const ApprenticeAchievements: React.FC = () => {
     const yearAgo = new Date(today);
     yearAgo.setFullYear(yearAgo.getFullYear() - 1);
 
-    return approvedTasks.filter((task: any) => {
+    return earningsData.approvedTasks.filter((task) => {
       if (!task.approvedAt) return false;
       const approvedDate = new Date(task.approvedAt);
 
@@ -79,24 +127,8 @@ const ApprenticeAchievements: React.FC = () => {
 
   const filteredTasks = getFilteredTasks();
   
-  // Shogird daromadini hisoblash - faqat foizga hisoblangan pul
-  const filteredEarnings = filteredTasks.reduce((total: number, task: any) => {
-    // Yangi tizim: assignments orqali
-    if (task.assignments && task.assignments.length > 0) {
-      const myAssignment = task.assignments.find((a: any) => {
-        const apprenticeId = typeof a.apprentice === 'object' ? a.apprentice._id : a.apprentice;
-        return apprenticeId === user?.id;
-      });
-      if (myAssignment) {
-        return total + (myAssignment.earning || 0);
-      }
-    }
-    // Eski tizim: apprenticeEarning
-    if (task.apprenticeEarning) {
-      return total + task.apprenticeEarning;
-    }
-    return total;
-  }, 0);
+  // Filtrlangan vazifalardan daromad
+  const filteredEarnings = filteredTasks.reduce((total, task) => total + (task.earning || 0), 0);
 
   // Statistikalar
   // Jami ish soatlari - berilgan vazifalarning estimatedHours yig'indisi
@@ -144,6 +176,17 @@ const ApprenticeAchievements: React.FC = () => {
   };
 
   const weeklyActivity = getWeeklyActivity();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">{t('Yuklanmoqda...', language)}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 sm:space-y-6 p-2 sm:p-0 pb-20">
@@ -201,9 +244,58 @@ const ApprenticeAchievements: React.FC = () => {
             <div className="sm:ml-4">
               <p className="text-xs sm:text-sm font-medium text-blue-700">{t('Joriy oylik', language)}</p>
               <p className="text-xl sm:text-2xl font-bold text-blue-900">
-                {new Intl.NumberFormat('uz-UZ').format(user?.earnings || 0)}
+                {new Intl.NumberFormat('uz-UZ').format(earningsData?.currentMonthEarnings || 0)}
               </p>
               <p className="text-xs text-blue-600">{t('so\'m', language)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tasdiqlangan pullari va Joriy oylik - Yangi qator */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
+        <div className="card p-4 sm:p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-xl bg-green-500">
+              <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 text-white" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm text-green-700 mb-1">{t('Tasdiqlangan pullari', language)}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-green-900">
+                {new Intl.NumberFormat('uz-UZ').format(approvedTasks.reduce((total: number, task: any) => {
+                  // Yangi tizim: assignments orqali
+                  if (task.assignments && task.assignments.length > 0) {
+                    const myAssignment = task.assignments.find((a: any) => {
+                      const apprenticeId = typeof a.apprentice === 'object' ? a.apprentice._id : a.apprentice;
+                      return apprenticeId === user?.id;
+                    });
+                    if (myAssignment) {
+                      return total + (myAssignment.earning || 0);
+                    }
+                  }
+                  // Eski tizim: apprenticeEarning
+                  if (task.apprenticeEarning) {
+                    return total + task.apprenticeEarning;
+                  }
+                  return total;
+                }, 0))}
+              </p>
+              <p className="text-xs text-green-600 mt-1">{t('so\'m (barcha vaqt)', language)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="card p-4 sm:p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-xl bg-blue-500">
+              <Award className="h-6 w-6 sm:h-7 sm:w-7 text-white" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm text-blue-700 mb-1">{t('Joriy oylik', language)}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-blue-900">
+                {new Intl.NumberFormat('uz-UZ').format(earningsData?.currentMonthEarnings || 0)}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">{t('so\'m', language)}</p>
             </div>
           </div>
         </div>
@@ -219,14 +311,36 @@ const ApprenticeAchievements: React.FC = () => {
             <div>
               <p className="text-sm sm:text-base text-blue-100 mb-1">{t('Jami daromad', language)}</p>
               <p className="text-3xl sm:text-4xl font-bold">
-                {new Intl.NumberFormat('uz-UZ').format(user?.totalEarnings || 0)}
+                {new Intl.NumberFormat('uz-UZ').format(earningsData?.currentMonthEarnings || 0)}
               </p>
-              <p className="text-xs sm:text-sm text-blue-100 mt-1">{t('so\'m (barcha vaqt)', language)}</p>
+              <p className="text-xs sm:text-sm text-blue-100 mt-1">{t('so\'m (joriy oy)', language)}</p>
             </div>
           </div>
           <div className="text-right hidden sm:block">
-            <div className="text-2xl font-bold">{approvedTasks.length}</div>
+            <div className="text-2xl font-bold">{earningsData?.approvedTasksCount || 0}</div>
             <div className="text-sm text-blue-100">{t('ta vazifa', language)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tasdiqlangan vazifalar daromadi */}
+      <div className="card p-4 sm:p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-xl bg-green-500">
+              <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+            </div>
+            <div>
+              <p className="text-sm sm:text-base text-green-700 mb-1">{t('Tasdiqlangan pullari', language)}</p>
+              <p className="text-3xl sm:text-4xl font-bold text-green-900">
+                {new Intl.NumberFormat('uz-UZ').format(earningsData?.approvedTasksEarnings || 0)}
+              </p>
+              <p className="text-xs sm:text-sm text-green-600 mt-1">{t('so\'m', language)}</p>
+            </div>
+          </div>
+          <div className="text-right hidden sm:block">
+            <div className="text-2xl font-bold text-green-900">{earningsData?.approvedTasksCount || 0}</div>
+            <div className="text-sm text-green-700">{t('ta vazifa', language)}</div>
           </div>
         </div>
       </div>
@@ -297,35 +411,9 @@ const ApprenticeAchievements: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredTasks
-              .sort((a: any, b: any) => new Date(b.approvedAt).getTime() - new Date(a.approvedAt).getTime())
-              .map((task: any, index: number) => {
-                // Shogird daromadini aniqlash
-                let taskEarning = 0;
-                let taskPercentage = null;
-                let taskTotalPayment = 0;
-                
-                // Yangi tizim: assignments
-                if (task.assignments && task.assignments.length > 0) {
-                  const myAssignment = task.assignments.find((a: any) => {
-                    const apprenticeId = typeof a.apprentice === 'object' ? a.apprentice._id : a.apprentice;
-                    return apprenticeId === user?.id;
-                  });
-                  if (myAssignment) {
-                    taskEarning = myAssignment.earning || 0;
-                    taskPercentage = myAssignment.percentage;
-                    taskTotalPayment = task.payment || 0;
-                  }
-                }
-                // Eski tizim: apprenticeEarning
-                else if (task.apprenticeEarning) {
-                  taskEarning = task.apprenticeEarning;
-                  taskPercentage = task.apprenticePercentage;
-                  taskTotalPayment = task.payment || 0;
-                }
-                
+            {filteredTasks.map((task, index) => {
                 // Agar daromad bo'lmasa, ko'rsatmaymiz
-                if (taskEarning === 0) return null;
+                if (task.earning === 0) return null;
                 
                 return (
                   <div key={task._id} className="flex items-center justify-between p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 hover:shadow-md transition-shadow gap-3">
@@ -347,38 +435,27 @@ const ApprenticeAchievements: React.FC = () => {
                             minute: '2-digit'
                           }) : 'Sana noma\'lum'}
                         </p>
-                        {taskPercentage && taskTotalPayment > 0 && (
+                        {task.percentage && task.totalPayment > 0 && (
                           <p className="text-xs text-blue-600 mt-1">
-                            {t('Umumiy:', language)} {new Intl.NumberFormat('uz-UZ').format(taskTotalPayment)} • {taskPercentage}%
+                            {t('Umumiy:', language)} {new Intl.NumberFormat('uz-UZ').format(task.totalPayment)} • {task.percentage}%
                           </p>
                         )}
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-lg sm:text-2xl font-bold text-blue-600">
-                        +{new Intl.NumberFormat('uz-UZ').format(taskEarning)}
+                        +{new Intl.NumberFormat('uz-UZ').format(task.earning)}
                       </p>
                       <p className="text-xs text-blue-700">so'm</p>
-                      {taskPercentage && (
-                        <p className="text-xs text-gray-600">({taskPercentage}%)</p>
+                      {task.percentage && (
+                        <p className="text-xs text-gray-600">({task.percentage}%)</p>
                       )}
                     </div>
                   </div>
                 );
               })}
             
-            {filteredTasks.every((task: any) => {
-              // Yangi tizim
-              if (task.assignments && task.assignments.length > 0) {
-                const myAssignment = task.assignments.find((a: any) => {
-                  const apprenticeId = typeof a.apprentice === 'object' ? a.apprentice._id : a.apprentice;
-                  return apprenticeId === user?.id;
-                });
-                return !myAssignment || myAssignment.earning === 0;
-              }
-              // Eski tizim
-              return !task.apprenticeEarning || task.apprenticeEarning === 0;
-            }) && (
+            {filteredTasks.every((task) => task.earning === 0) && (
               <div className="text-center py-8">
                 <p className="text-gray-500">{t('To\'lovli vazifalar yo\'q', language)}</p>
               </div>

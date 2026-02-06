@@ -24,13 +24,11 @@ export class SyncManager {
     this.queueManager = QueueManager.getInstance();
     this.storage = IndexedDBManager.getInstance();
 
-    // Listen to network changes - Tez sync qilish
+    // Listen to network changes - INSTANT sync (0ms)
     this.networkManager.onStatusChange((status) => {
       if (status.isOnline && !this.isSyncing) {
-        // Network stabilize bo'lishini kutish - 500ms (tezroq)
-        setTimeout(() => {
-          this.syncPendingOperations();
-        }, 500); // 500ms kechikish (tezroq sync)
+        // INSTANT sync - kechikishsiz darhol boshlanadi
+        this.syncPendingOperations();
       }
     });
   }
@@ -111,9 +109,9 @@ export class SyncManager {
           }
         }
         
-        // Batch'lar orasida pauza (100ms)
+        // Batch'lar orasida minimal pauza (20ms - ultra fast)
         if (i + BATCH_SIZE < sortedOps.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 20));
         }
       }
 
@@ -160,10 +158,10 @@ export class SyncManager {
         throw error;
       }
       
-      // ERR_NETWORK_CHANGED - network o'zgarganda retry qilish (tezroq)
+      // ERR_NETWORK_CHANGED - network o'zgarganda INSTANT retry (50ms)
       if (error.message?.includes('ERR_NETWORK_CHANGED') || error.message?.includes('network changed')) {
-        // 500ms kutib retry qilish (tezroq)
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // 50ms kutib INSTANT retry
+        await new Promise(resolve => setTimeout(resolve, 50));
         
         // Retry
         switch (action) {
@@ -341,8 +339,8 @@ export class SyncManager {
     
     // ERR_NETWORK_CHANGED is normal when switching from offline to online
     if (error?.message?.includes('network change') || error?.code === 'ERR_NETWORK_CHANGED') {
-      // Retry once after network change - tezroq (500ms)
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Retry once after network change - INSTANT (50ms)
+      await new Promise(resolve => setTimeout(resolve, 50));
       try {
         await this.syncOperation(operation);
         await this.queueManager.clearOperation(operation.id!);

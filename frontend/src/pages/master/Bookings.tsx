@@ -270,7 +270,19 @@ const Bookings: React.FC = () => {
                       
                       {/* Tooltip */}
                       <div className="absolute top-full right-0 mt-2 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover/badge:opacity-100 group-hover/badge:visible transition-all duration-200 whitespace-nowrap shadow-xl">
-                        {daysUntilBirthday === 0 ? '🎉 Bugun tug\'ilgan kun!' : `🎂 ${daysUntilBirthday} kun qoldi`}
+                        <div className="flex items-center gap-1.5">
+                          {daysUntilBirthday === 0 ? (
+                            <>
+                              <PartyPopper className="h-3.5 w-3.5" />
+                              <span>Bugun tug'ilgan kun!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Cake className="h-3.5 w-3.5" />
+                              <span>{daysUntilBirthday} kun qoldi</span>
+                            </>
+                          )}
+                        </div>
                         <div className="absolute bottom-full right-4 border-4 border-transparent border-b-gray-900"></div>
                       </div>
                     </div>
