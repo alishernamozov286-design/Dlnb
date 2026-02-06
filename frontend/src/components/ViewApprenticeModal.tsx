@@ -143,7 +143,7 @@ const ViewApprenticeModal: React.FC<ViewApprenticeModalProps> = ({ isOpen, onClo
           </div>
 
           {/* Content */}
-          <div className="p-4 max-h-[60vh] overflow-y-auto">
+          <div className="p-4 max-h-[60vh] overflow-y-auto scrollbar-hide">
             {activeTab === 'stats' ? (
               <div className="space-y-3">
                 {/* Profile Image & Info */}

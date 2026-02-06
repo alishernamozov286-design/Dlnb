@@ -144,7 +144,7 @@ const ViewCarModal: React.FC<ViewCarModalProps> = ({ isOpen, onClose, car, onEdi
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-3 sm:p-4">
           {/* Main Info Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 sm:gap-3 mb-3 sm:mb-4">
             {/* Mashina ma'lumotlari */}

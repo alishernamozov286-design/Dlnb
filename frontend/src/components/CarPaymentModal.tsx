@@ -301,7 +301,7 @@ const CarPaymentModal: React.FC<CarPaymentModalProps> = ({ isOpen, onClose, car,
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       
-      <div className="relative bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto mx-2 sm:mx-0 my-4 sm:my-0">
+      <div className="relative bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto scrollbar-hide mx-2 sm:mx-0 my-4 sm:my-0">
         {/* Header */}
         <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-5">
           <button onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white hover:bg-white/20 rounded-lg p-1.5 transition-colors">

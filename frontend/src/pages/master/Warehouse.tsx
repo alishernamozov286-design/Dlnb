@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import { 
   Package,
   Plus,
@@ -8,67 +8,177 @@ import {
   Eye,
   AlertCircle,
   Box,
-  ArrowLeft
+  ArrowLeft,
+  DollarSign,
+  TrendingUp,
+  RefreshCw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { t } from '@/lib/transliteration';
 import { formatCurrency } from '@/lib/utils';
 import { useSpareParts } from '@/hooks/useSpareParts';
+import { useQueryClient } from '@tanstack/react-query';
+import api from '@/lib/api';
 import CreateSparePartModal from '@/components/CreateSparePartModal';
 import EditSparePartModal from '@/components/EditSparePartModal';
 import DeleteSparePartModal from '@/components/DeleteSparePartModal';
 import ViewSparePartModal from '@/components/ViewSparePartModal';
+import SellSparePartModal from '@/components/SellSparePartModal';
+
+// Debounce hook
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 const MasterWarehouse: React.FC = memo(() => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 150); // 150ms debounce
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isSellModalOpen, setIsSellModalOpen] = useState(false);
   const [selectedPart, setSelectedPart] = useState<any>(null);
+  const [salesStats, setSalesStats] = useState<any>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const language = useMemo<'latin' | 'cyrillic'>(() => {
     const savedLanguage = localStorage.getItem('language');
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   }, []);
 
-  const { data: sparePartsData, isLoading, refetch } = useSpareParts();
+  const { data: sparePartsData, isLoading, refetch, isFetching } = useSpareParts();
 
-  const spareParts = sparePartsData?.spareParts || [];
+  const spareParts = useMemo(() => sparePartsData?.spareParts || [], [sparePartsData]);
 
   const filteredParts = useMemo(() => {
-    if (!spareParts) return [];
+    if (!spareParts.length) return [];
+    if (!debouncedSearch) return spareParts;
+    
+    const searchLower = debouncedSearch.toLowerCase();
     return spareParts.filter((part: any) =>
-      part.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      part.code?.toLowerCase().includes(searchQuery.toLowerCase())
+      part.name.toLowerCase().includes(searchLower) ||
+      part.supplier?.toLowerCase().includes(searchLower)
     );
-  }, [spareParts, searchQuery]);
+  }, [spareParts, debouncedSearch]);
 
   const lowStockParts = useMemo(() => {
-    if (!spareParts) return [];
-    return spareParts.filter((part: any) => part.quantity <= part.minQuantity);
+    return spareParts.filter((part: any) => part.quantity <= 3);
   }, [spareParts]);
 
-  const totalValue = useMemo(() => {
-    if (!spareParts) return 0;
-    return spareParts.reduce((sum: number, part: any) => sum + (part.price * part.quantity), 0);
+  const statistics = useMemo(() => {
+    if (!spareParts.length) return {
+      totalValue: 0,
+      totalProfit: 0,
+      totalItems: 0,
+      totalQuantity: 0
+    };
+
+    return {
+      totalValue: spareParts.reduce((sum: number, part: any) => 
+        sum + (part.sellingPrice * part.quantity), 0),
+      totalProfit: spareParts.reduce((sum: number, part: any) => 
+        sum + ((part.sellingPrice - part.costPrice) * part.quantity), 0),
+      totalItems: spareParts.length,
+      totalQuantity: spareParts.reduce((sum: number, part: any) => 
+        sum + part.quantity, 0)
+    };
   }, [spareParts]);
 
-  const handleEdit = (part: any) => {
+  const handleEdit = useCallback((part: any) => {
     setSelectedPart(part);
     setIsEditModalOpen(true);
-  };
+  }, []);
 
-  const handleDelete = (part: any) => {
+  const handleDelete = useCallback((part: any) => {
     setSelectedPart(part);
     setIsDeleteModalOpen(true);
-  };
+  }, []);
 
-  const handleView = (part: any) => {
+  const handleView = useCallback((part: any) => {
     setSelectedPart(part);
     setIsViewModalOpen(true);
-  };
+  }, []);
+
+  const handleSell = useCallback((part: any) => {
+    setSelectedPart(part);
+    setIsSellModalOpen(true);
+  }, []);
+
+  // Miqdorga qarab rang aniqlash
+  const getStockColor = useCallback((quantity: number) => {
+    if (quantity < 3) {
+      return {
+        card: 'border-red-300 bg-gradient-to-br from-red-50 to-pink-50 hover:border-red-400',
+        badge: 'bg-gradient-to-br from-red-500 to-pink-600'
+      };
+    } else if (quantity >= 3 && quantity < 10) {
+      return {
+        card: 'border-yellow-300 bg-gradient-to-br from-yellow-50 to-amber-50 hover:border-yellow-400',
+        badge: 'bg-gradient-to-br from-yellow-500 to-amber-600'
+      };
+    } else if (quantity >= 10 && quantity < 15) {
+      return {
+        card: 'border-blue-300 bg-gradient-to-br from-blue-50 to-cyan-50 hover:border-blue-400',
+        badge: 'bg-gradient-to-br from-blue-500 to-cyan-600'
+      };
+    } else {
+      return {
+        card: 'border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 hover:border-green-400',
+        badge: 'bg-gradient-to-br from-green-500 to-emerald-600'
+      };
+    }
+  }, []);
+
+  const handleSellSuccess = useCallback(() => {
+    setIsSellModalOpen(false);
+    setSelectedPart(null);
+    // Instant refresh - ma'lumotlarni darhol yangilash
+    queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
+    refetch();
+    fetchSalesStats();
+  }, [refetch, queryClient]);
+
+  // Manual refresh funksiyasi
+  const handleManualRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      refetch(),
+      fetchSalesStats()
+    ]);
+    setTimeout(() => setIsRefreshing(false), 300);
+  }, [refetch]);
+
+  const fetchSalesStats = useCallback(async () => {
+    setIsLoadingStats(true);
+    try {
+      const response = await api.get('/spare-parts/sales/statistics');
+      setSalesStats(response.data.statistics);
+    } catch (error) {
+      console.error('Error fetching sales statistics:', error);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSalesStats();
+  }, [fetchSalesStats]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-indigo-50/40">
@@ -112,10 +222,20 @@ const MasterWarehouse: React.FC = memo(() => {
                 <Plus className="h-5 w-5 relative z-10" />
                 <span className="relative z-10">{t('Tovar qo\'shish', language)}</span>
               </button>
+              
+              {/* Refresh Button */}
+              <button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing || isFetching}
+                className="group relative overflow-hidden px-4 py-3 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2 border-2 border-gray-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`h-5 w-5 ${isRefreshing || isFetching ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{t('Yangilash', language)}</span>
+              </button>
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 mb-5">
               <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200 hover:shadow-lg transition-all">
                 <div className="flex items-center justify-between mb-3">
                   <div className="p-2 bg-purple-500 rounded-lg">
@@ -126,7 +246,11 @@ const MasterWarehouse: React.FC = memo(() => {
                   </span>
                 </div>
                 <div className="text-2xl font-bold text-purple-900">
-                  {isLoading ? '...' : spareParts?.length || 0}
+                  {isLoading && !sparePartsData ? (
+                    <div className="h-8 w-16 bg-purple-200 animate-pulse rounded"></div>
+                  ) : (
+                    spareParts?.length || 0
+                  )}
                 </div>
                 <p className="text-xs text-purple-600 mt-1">{t('Tovar turlari', language)}</p>
               </div>
@@ -141,7 +265,11 @@ const MasterWarehouse: React.FC = memo(() => {
                   </span>
                 </div>
                 <div className="text-2xl font-bold text-blue-900">
-                  {isLoading ? '...' : formatCurrency(totalValue)}
+                  {isLoading && !sparePartsData ? (
+                    <div className="h-8 w-24 bg-blue-200 animate-pulse rounded"></div>
+                  ) : (
+                    formatCurrency(statistics.totalValue)
+                  )}
                 </div>
                 <p className="text-xs text-blue-600 mt-1">{t('Umumiy qiymat', language)}</p>
               </div>
@@ -156,42 +284,92 @@ const MasterWarehouse: React.FC = memo(() => {
                   </span>
                 </div>
                 <div className="text-2xl font-bold text-red-900">
-                  {isLoading ? '...' : lowStockParts.length}
+                  {isLoading && !sparePartsData ? (
+                    <div className="h-8 w-12 bg-red-200 animate-pulse rounded"></div>
+                  ) : (
+                    lowStockParts.length
+                  )}
                 </div>
                 <p className="text-xs text-red-600 mt-1">{t('Kam qolgan', language)}</p>
+              </div>
+            </div>
+
+            {/* Sales Statistics */}
+            <div className="border-t border-gray-200 pt-5">
+              <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-green-600" />
+                {t('Sotuvlar statistikasi', language)}
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="p-1 bg-green-500 rounded">
+                      <Package className="h-3 w-3 text-white" />
+                    </div>
+                    <span className="text-xs font-semibold text-green-700">{t('Sotuvlar', language)}</span>
+                  </div>
+                  <div className="text-lg font-bold text-green-900">
+                    {isLoadingStats ? (
+                      <div className="h-7 w-12 bg-green-200 animate-pulse rounded"></div>
+                    ) : (
+                      salesStats?.totalSales || 0
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="p-1 bg-blue-500 rounded">
+                      <Box className="h-3 w-3 text-white" />
+                    </div>
+                    <span className="text-xs font-semibold text-blue-700">{t('Miqdor', language)}</span>
+                  </div>
+                  <div className="text-lg font-bold text-blue-900">
+                    {isLoadingStats ? (
+                      <div className="h-7 w-12 bg-blue-200 animate-pulse rounded"></div>
+                    ) : (
+                      salesStats?.totalQuantitySold || 0
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="p-1 bg-purple-500 rounded">
+                      <DollarSign className="h-3 w-3 text-white" />
+                    </div>
+                    <span className="text-xs font-semibold text-purple-700">{t('Tushum', language)}</span>
+                  </div>
+                  <div className="text-sm font-bold text-purple-900">
+                    {isLoadingStats ? (
+                      <div className="h-6 w-20 bg-purple-200 animate-pulse rounded"></div>
+                    ) : (
+                      formatCurrency(salesStats?.totalRevenue || 0)
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-3 border border-yellow-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="p-1 bg-yellow-500 rounded">
+                      <TrendingUp className="h-3 w-3 text-white" />
+                    </div>
+                    <span className="text-xs font-semibold text-yellow-700">{t('Foyda', language)}</span>
+                  </div>
+                  <div className="text-sm font-bold text-yellow-900">
+                    {isLoadingStats ? (
+                      <div className="h-6 w-20 bg-yellow-200 animate-pulse rounded"></div>
+                    ) : (
+                      formatCurrency(salesStats?.totalProfit || 0)
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Low Stock Alert */}
-        {lowStockParts.length > 0 && (
-          <div className="relative overflow-hidden bg-gradient-to-r from-red-50 to-pink-50 rounded-2xl p-5 border-2 border-red-200 shadow-lg">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-red-500 rounded-xl">
-                <AlertCircle className="h-6 w-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-red-900 mb-2">{t('Kam qolgan tovarlar', language)}</h3>
-                <div className="space-y-2">
-                  {lowStockParts.slice(0, 3).map((part: any) => (
-                    <div key={part._id} className="flex items-center justify-between bg-white/60 rounded-lg p-3">
-                      <span className="font-semibold text-gray-900">{part.name}</span>
-                      <span className="text-sm text-red-600 font-bold">
-                        {part.quantity} / {part.minQuantity} {part.unit}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                {lowStockParts.length > 3 && (
-                  <p className="text-sm text-red-600 mt-2">
-                    +{lowStockParts.length - 3} {t('ta boshqa', language)}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Low Stock Alert - O'chirildi, faqat statistika kartasida ko'rsatiladi */}
 
         {/* Search Bar */}
         <div className="relative">
@@ -218,7 +396,8 @@ const MasterWarehouse: React.FC = memo(() => {
             </h3>
 
             <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-              {isLoading ? (
+              {/* Loading overlay - faqat birinchi yuklanishda */}
+              {isLoading && !sparePartsData ? (
                 <div className="text-center py-12">
                   <div className="relative mx-auto w-16 h-16 mb-4">
                     <div className="absolute inset-0 border-4 border-purple-200 rounded-full"></div>
@@ -241,28 +420,24 @@ const MasterWarehouse: React.FC = memo(() => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {filteredParts.map((part: any) => (
-                    <div 
-                      key={part._id} 
-                      className={`group relative overflow-hidden rounded-xl p-4 border-2 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] ${
-                        part.quantity <= part.minQuantity
-                          ? 'border-red-200 bg-gradient-to-br from-red-50 to-pink-50 hover:border-red-300'
-                          : 'border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50 hover:border-purple-300'
-                      }`}
-                    >
-                      {/* Top Badge */}
-                      <div className="flex items-center justify-between mb-3">
-                        <div className={`p-2 rounded-lg shadow-md ${
-                          part.quantity <= part.minQuantity ? 'bg-gradient-to-br from-red-500 to-pink-600' : 'bg-gradient-to-br from-purple-500 to-indigo-600'
-                        }`}>
-                          <Package className="h-4 w-4 text-white" />
+                  {filteredParts.map((part: any) => {
+                    const stockColor = getStockColor(part.quantity);
+                    return (
+                      <div 
+                        key={part._id} 
+                        className={`group relative overflow-hidden rounded-xl p-4 border-2 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] ${stockColor.card}`}
+                      >
+                        {/* Top Badge */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className={`p-2 rounded-lg shadow-md ${stockColor.badge}`}>
+                            <Package className="h-4 w-4 text-white" />
+                          </div>
+                          {part.quantity <= 3 && (
+                            <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-red-100 text-red-700 border border-red-300 animate-pulse">
+                              {t('Kam qolgan!', language)}
+                            </span>
+                          )}
                         </div>
-                        {part.code && (
-                          <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-white/80 text-gray-700 border border-gray-200">
-                            {part.code}
-                          </span>
-                        )}
-                      </div>
 
                       {/* Product Name */}
                       <h4 className="font-bold text-base text-gray-900 mb-2 line-clamp-2 min-h-[3rem]">
@@ -285,16 +460,15 @@ const MasterWarehouse: React.FC = memo(() => {
                         </div>
                       </div>
 
-                      {/* Low Stock Warning */}
-                      {part.quantity <= part.minQuantity && (
-                        <div className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mb-3 bg-red-100/50 rounded-lg p-2">
-                          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span className="truncate">{t('Kam qoldi', language)}</span>
-                        </div>
-                      )}
-
                       {/* Action Buttons */}
-                      <div className="grid grid-cols-3 gap-1.5 pt-3 border-t border-gray-200">
+                      <div className="grid grid-cols-4 gap-1.5 pt-3 border-t border-gray-200">
+                        <button
+                          onClick={() => handleSell(part)}
+                          className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors flex items-center justify-center"
+                          title={t('Sotish', language)}
+                        > 
+                          <DollarSign className="h-4 w-4" />
+                        </button>
                         <button
                           onClick={() => handleView(part)}
                           className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors flex items-center justify-center"
@@ -318,7 +492,8 @@ const MasterWarehouse: React.FC = memo(() => {
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -332,7 +507,10 @@ const MasterWarehouse: React.FC = memo(() => {
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={() => {
           setIsCreateModalOpen(false);
+          // Instant refresh
+          queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
           refetch();
+          fetchSalesStats();
         }}
       />
       {selectedPart && (
@@ -346,6 +524,8 @@ const MasterWarehouse: React.FC = memo(() => {
             onSuccess={() => {
               setIsEditModalOpen(false);
               setSelectedPart(null);
+              // Instant refresh
+              queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
               refetch();
             }}
             sparePart={selectedPart}
@@ -359,7 +539,10 @@ const MasterWarehouse: React.FC = memo(() => {
             onSuccess={() => {
               setIsDeleteModalOpen(false);
               setSelectedPart(null);
+              // Instant refresh
+              queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
               refetch();
+              fetchSalesStats();
             }}
             sparePart={selectedPart}
           />
@@ -369,6 +552,15 @@ const MasterWarehouse: React.FC = memo(() => {
               setIsViewModalOpen(false);
               setSelectedPart(null);
             }}
+            sparePart={selectedPart}
+          />
+          <SellSparePartModal
+            isOpen={isSellModalOpen}
+            onClose={() => {
+              setIsSellModalOpen(false);
+              setSelectedPart(null);
+            }}
+            onSuccess={handleSellSuccess}
             sparePart={selectedPart}
           />
         </>

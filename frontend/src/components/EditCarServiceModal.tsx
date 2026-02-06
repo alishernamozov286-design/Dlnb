@@ -331,7 +331,7 @@ const EditCarServiceModal: React.FC<EditCarServiceModalProps> = ({ isOpen, onClo
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="flex-1 overflow-y-auto scrollbar-hide p-5 space-y-4">
             {currentStep === 3 ? (
               // VAZIFALAR QISMI
               <>

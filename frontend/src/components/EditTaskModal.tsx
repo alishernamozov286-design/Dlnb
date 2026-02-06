@@ -228,7 +228,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ isOpen, onClose, task, on
             </div>
           </div>
 
-          <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
+          <div className="overflow-y-auto max-h-[calc(90vh-120px)] scrollbar-hide">
             <form onSubmit={handleSubmit} className="p-3 sm:p-4 space-y-2.5">
             {/* Shogirdlar - Ko'p shogirdli tizim */}
             <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 p-3 rounded-xl border-2 border-blue-200 shadow-sm">

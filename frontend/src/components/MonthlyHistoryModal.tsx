@@ -106,7 +106,7 @@ const MonthlyHistoryModal: React.FC<MonthlyHistoryModalProps> = ({ isOpen, onClo
         </div>
 
         {/* Content */}
-        <div className="p-4 max-h-[calc(95vh-80px)] overflow-y-auto">
+        <div className="p-4 max-h-[calc(95vh-80px)] overflow-y-auto scrollbar-hide">
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>

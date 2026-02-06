@@ -51,9 +51,13 @@ export const useSpareParts = (filters: SparePartFilters = {}) => {
       const response = await api.get(`/spare-parts?${params.toString()}`);
       return response.data;
     },
-    staleTime: 60000, // 1 minute
-    retry: 2,
-    placeholderData: (previousData) => previousData, // React Query v5 replacement for keepPreviousData
+    staleTime: 100, // 0.1 sekund - juda tez yangilanish
+    gcTime: 5000, // 5 sekund cache
+    refetchInterval: 100, // Har 0.1 sekundda avtomatik yangilanadi
+    retry: 1, // Faqat 1 marta retry - tezroq
+    refetchOnMount: 'always', // Har doim yangi ma'lumot
+    refetchOnWindowFocus: true, // Focus'da yangilash
+    placeholderData: (previousData) => previousData, // Eski ma'lumotni ko'rsatish
   });
 };
 

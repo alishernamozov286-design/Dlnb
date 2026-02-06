@@ -75,7 +75,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(95vh-140px)]">
+        <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(95vh-140px)] scrollbar-hide">
           {/* Stats Grid */}
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-100">

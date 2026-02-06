@@ -11,7 +11,10 @@ import {
   incrementUsage,
   getRequiredParts,
   removeRequiredPart,
-  addRequiredPartToInventory
+  addRequiredPartToInventory,
+  sellSparePart,
+  getSalesStatistics,
+  getSales
 } from '../controllers/sparePartController';
 import { authenticate, authorize } from '../middleware/auth';
 import { handleValidationErrors } from '../middleware/validation';
@@ -26,6 +29,12 @@ router.get('/', authenticate, getSpareParts);
 
 // Get required parts (client keltirish kerak)
 router.get('/required/list', authenticate, getRequiredParts);
+
+// Get sales statistics
+router.get('/sales/statistics', authenticate, getSalesStatistics);
+
+// Get sales list
+router.get('/sales', authenticate, getSales);
 
 // Get spare part by ID
 router.get('/:id', authenticate, getSparePartById);
@@ -67,5 +76,12 @@ router.delete('/required/:carId/:partId', authenticate, authorize('master'), rem
 
 // Add required part to inventory
 router.post('/required/:carId/:partId/add-to-inventory', authenticate, authorize('master'), addRequiredPartToInventory);
+
+// Sell spare part
+router.post('/sell', authenticate, [
+  body('sparePartId').notEmpty().withMessage('Zapchast ID kiritilishi shart'),
+  body('quantity').isInt({ min: 1 }).withMessage('Miqdor kamida 1 bo\'lishi kerak'),
+  body('sellingPrice').optional().isFloat({ min: 0 }).withMessage('Sotish narxi 0 dan katta bo\'lishi kerak')
+], handleValidationErrors, sellSparePart);
 
 export default router;

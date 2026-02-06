@@ -218,7 +218,7 @@ const EditApprenticeModal: React.FC<EditApprenticeModalProps> = ({ isOpen, onClo
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-4 space-y-3 max-h-[calc(100vh-120px)] overflow-y-auto">
+          <form onSubmit={handleSubmit} className="p-4 space-y-3 max-h-[calc(100vh-120px)] overflow-y-auto scrollbar-hide">
             {/* Name */}
             <div>
               <label htmlFor="name" className="block text-xs font-medium text-gray-700 mb-1">

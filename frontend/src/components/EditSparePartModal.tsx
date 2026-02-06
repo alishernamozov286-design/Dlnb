@@ -216,7 +216,7 @@ const EditSparePartModal: React.FC<EditSparePartModalProps> = ({ isOpen, onClose
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-3 overflow-y-auto max-h-[calc(95vh-80px)]">
+        <form onSubmit={handleSubmit} className="p-4 space-y-3 overflow-y-auto max-h-[calc(95vh-80px)] scrollbar-hide">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
               {t('Zapchast nomi', language)} *

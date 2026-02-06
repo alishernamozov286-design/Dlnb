@@ -30,6 +30,7 @@
     "reset-apprentice-all": "ts-node src/scripts/resetApprenticeEarningsAndTasks.ts",
     "clear-archived-cars": "ts-node src/scripts/clearArchivedCars.ts",
     "clear-cars": "ts-node src/scripts/clearCars.ts",
+    "clear-warehouse": "ts-node src/scripts/clearWarehouse.ts",
     "migrate:clientid": "ts-node src/scripts/addClientIdToExisting.ts"
   },
   "dependencies": {

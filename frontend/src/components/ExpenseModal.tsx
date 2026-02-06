@@ -247,7 +247,7 @@ const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Content */}
-        <div className="p-4 max-h-[calc(95vh-80px)] overflow-y-auto">
+        <div className="p-4 max-h-[calc(95vh-80px)] overflow-y-auto scrollbar-hide">
           {step === 'categories' ? (
             // Step 1: Kategoriyalar ro'yxati
             <div className="space-y-4">

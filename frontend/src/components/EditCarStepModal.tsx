@@ -404,7 +404,7 @@ const EditCarStepModal: React.FC<EditCarStepModalProps> = ({ isOpen, onClose, ca
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-6">
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-3 sm:p-6">
           {currentStep === 1 && (
             <div className="space-y-4">
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">{t("Mashina ma'lumotlari", language)}</h3>

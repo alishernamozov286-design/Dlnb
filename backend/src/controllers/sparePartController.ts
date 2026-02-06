@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import SparePart from '../models/SparePart';
+import SparePartSale from '../models/SparePartSale';
 import { AuthRequest } from '../middleware/auth';
 
 export const searchSpareParts = async (req: AuthRequest, res: Response) => {
@@ -107,6 +108,13 @@ export const getSpareParts = async (req: AuthRequest, res: Response) => {
       totalProfit: 0,
       lowStockCount: 0
     };
+
+    // HTTP cache headers - 0.1 sekund cache
+    res.set({
+      'Cache-Control': 'public, max-age=0, must-revalidate',
+      'ETag': `W/"${Date.now()}"`,
+      'Last-Modified': new Date().toUTCString()
+    });
 
     res.json({
       spareParts,
@@ -450,6 +458,194 @@ export const addRequiredPartToInventory = async (req: AuthRequest, res: Response
     });
   } catch (error: any) {
     console.error('Error adding part to inventory:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Zapchast sotish
+export const sellSparePart = async (req: AuthRequest, res: Response) => {
+  try {
+    const { sparePartId, quantity, sellingPrice, customerName, customerPhone, notes } = req.body;
+
+    // Zapchastni topish
+    const sparePart = await SparePart.findById(sparePartId);
+    if (!sparePart) {
+      return res.status(404).json({ message: 'Zapchast topilmadi' });
+    }
+
+    // Miqdorni tekshirish
+    if (sparePart.quantity < quantity) {
+      return res.status(400).json({ 
+        message: `Omborda yetarli miqdor yo'q. Mavjud: ${sparePart.quantity} dona` 
+      });
+    }
+
+    // Sotish narxini tekshirish
+    const finalSellingPrice = sellingPrice || sparePart.sellingPrice;
+
+    // Hisob-kitoblar
+    const totalCost = sparePart.costPrice * quantity;
+    const totalRevenue = finalSellingPrice * quantity;
+    const profit = totalRevenue - totalCost;
+
+    // Sotuvni saqlash
+    const sale = new SparePartSale({
+      sparePartId: sparePart._id,
+      sparePartName: sparePart.name,
+      quantity,
+      costPrice: sparePart.costPrice,
+      sellingPrice: finalSellingPrice,
+      totalCost,
+      totalRevenue,
+      profit,
+      soldBy: req.user!._id,
+      soldByName: req.user!.name,
+      customerName,
+      customerPhone,
+      notes
+    });
+
+    await sale.save();
+
+    // Ombordagi miqdorni kamaytirish
+    sparePart.quantity -= quantity;
+    await sparePart.save();
+
+    res.status(201).json({
+      message: 'Zapchast muvaffaqiyatli sotildi',
+      sale,
+      remainingQuantity: sparePart.quantity
+    });
+  } catch (error: any) {
+    console.error('Error selling spare part:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Sotuvlar statistikasi
+export const getSalesStatistics = async (req: AuthRequest, res: Response) => {
+  try {
+    const { startDate, endDate, sparePartId } = req.query;
+
+    const filter: any = {};
+
+    // Sana filtri
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate as string);
+      if (endDate) filter.createdAt.$lte = new Date(endDate as string);
+    }
+
+    // Zapchast filtri
+    if (sparePartId) {
+      filter.sparePartId = sparePartId;
+    }
+
+    // Statistikani hisoblash
+    const stats = await SparePartSale.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: 1 },
+          totalQuantitySold: { $sum: '$quantity' },
+          totalRevenue: { $sum: '$totalRevenue' },
+          totalCost: { $sum: '$totalCost' },
+          totalProfit: { $sum: '$profit' }
+        }
+      }
+    ]);
+
+    // Eng ko'p sotiladigan zapchastlar
+    const topSelling = await SparePartSale.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: '$sparePartId',
+          sparePartName: { $first: '$sparePartName' },
+          totalQuantity: { $sum: '$quantity' },
+          totalRevenue: { $sum: '$totalRevenue' },
+          totalProfit: { $sum: '$profit' },
+          salesCount: { $sum: 1 }
+        }
+      },
+      { $sort: { totalRevenue: -1 } },
+      { $limit: 10 }
+    ]);
+
+    const statistics = stats[0] || {
+      totalSales: 0,
+      totalQuantitySold: 0,
+      totalRevenue: 0,
+      totalCost: 0,
+      totalProfit: 0
+    };
+
+    res.json({
+      statistics,
+      topSelling
+    });
+  } catch (error: any) {
+    console.error('Error fetching sales statistics:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Sotuvlar ro'yxati
+export const getSales = async (req: AuthRequest, res: Response) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 50,
+      startDate,
+      endDate,
+      sparePartId,
+      soldBy
+    } = req.query;
+
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.min(100, Math.max(1, Number(limit)));
+    const skip = (pageNum - 1) * limitNum;
+
+    const filter: any = {};
+
+    // Sana filtri
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate as string);
+      if (endDate) filter.createdAt.$lte = new Date(endDate as string);
+    }
+
+    // Zapchast filtri
+    if (sparePartId) {
+      filter.sparePartId = sparePartId;
+    }
+
+    // Sotuvchi filtri
+    if (soldBy) {
+      filter.soldBy = soldBy;
+    }
+
+    const [sales, total] = await Promise.all([
+      SparePartSale.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      SparePartSale.countDocuments(filter)
+    ]);
+
+    res.json({
+      sales,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum)
+      }
+    });
+  } catch (error: any) {
+    console.error('Error fetching sales:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

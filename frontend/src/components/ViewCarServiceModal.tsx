@@ -189,7 +189,7 @@ const ViewCarServiceModal: React.FC<ViewCarServiceModalProps> = ({ isOpen, onClo
             </div>
           </div>
 
-          <div className="p-5 max-h-[70vh] overflow-y-auto space-y-4">
+          <div className="p-5 max-h-[70vh] overflow-y-auto scrollbar-hide space-y-4">
             {/* Car Info */}
             <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">

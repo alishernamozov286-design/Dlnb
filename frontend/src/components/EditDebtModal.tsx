@@ -109,7 +109,7 @@ const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, onClose, debt }) 
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto scrollbar-hide p-6">
           <div className="space-y-5">
             {/* Type */}
             <div>
