@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import { NetworkManager } from './lib/sync/NetworkManager'
+import { registerSW } from 'virtual:pwa-register'
 
 // Initialize network manager
 const networkManager = NetworkManager.getInstance();
@@ -12,29 +13,31 @@ networkManager.onStatusChange(() => {
   // Silent network status changes
 });
 
-// Register Service Worker for PWA
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', async () => {
-    try {
-      const registration = await navigator.serviceWorker.register('/sw.js');
-
-      // Listen for SW messages
+// Register Service Worker for PWA using vite-plugin-pwa
+registerSW({
+  onNeedRefresh() {
+    console.log('[PWA] New content available, please refresh.');
+  },
+  onOfflineReady() {
+    console.log('[PWA] App ready to work offline');
+  },
+  onRegistered() {
+    console.log('[PWA] Service Worker registered successfully');
+    
+    // Listen for SW messages
+    if (navigator.serviceWorker) {
       navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data && event.data.type === 'SYNC_TRIGGER') {
           // Trigger sync when SW requests it
           window.dispatchEvent(new CustomEvent('online-sync-trigger'));
         }
       });
-
-      // Register background sync if supported
-      if ('sync' in registration) {
-        // Background sync will be triggered automatically when online
-      }
-    } catch (error) {
-      console.error('[PWA] Service Worker registration failed:', error);
     }
-  });
-}
+  },
+  onRegisterError(error) {
+    console.error('[PWA] Service Worker registration failed:', error);
+  }
+});
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
