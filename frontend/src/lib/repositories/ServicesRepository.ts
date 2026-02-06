@@ -4,40 +4,44 @@
  */
 
 import { BaseRepository } from './BaseRepository';
+import { BaseEntity } from '../types/base';
 
-export interface Service {
-  _id: string;
+export interface Service extends BaseEntity {
   name: string;
   description?: string;
   price: number;
   category?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  isActive?: boolean;
+  createdBy?: string;
 }
 
 class ServicesRepository extends BaseRepository<Service> {
   constructor() {
-    super('carServices', '/services');
+    super({
+      collection: 'carServices',
+      singularName: 'service',
+      useSoftDelete: false
+    });
   }
 
-  /**
-   * Online'dan xizmatlarni yuklab, offline uchun saqlash
-   */
-  async syncServices(): Promise<void> {
-    try {
-      const response = await this.api.get('/services');
-      const services = response.data.services || [];
-      
-      // Barcha xizmatlarni saqlash
-      for (const service of services) {
-        await this.db.put(this.storeName, service);
-      }
-      
-      console.log(`✅ ${services.length} ta xizmat saqlandi (offline uchun)`);
-    } catch (error) {
-      console.error('❌ Xizmatlarni sync qilishda xatolik:', error);
-      throw error;
+  protected validateCreate(data: Omit<Service, '_id'>): void {
+    if (!data.name) throw new Error('Service name is required');
+    if (data.price === undefined || data.price < 0) throw new Error('Valid price is required');
+  }
+
+  protected validateUpdate(data: Partial<Service>): void {
+    if (data.price !== undefined && data.price < 0) {
+      throw new Error('Price cannot be negative');
     }
+  }
+
+  protected getApiEndpoint(): string {
+    return '/services';
+  }
+
+  protected transformForServer(data: any): any {
+    const { _pending, _lastModified, ...cleanData } = data;
+    return cleanData;
   }
 
   /**

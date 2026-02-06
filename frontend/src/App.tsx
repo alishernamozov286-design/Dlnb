@@ -287,7 +287,8 @@ function App() {
     const syncUsers = async () => {
       try {
         const { usersRepository } = await import('@/lib/repositories/UsersRepository');
-        await usersRepository.syncApprentices();
+        // getAll() orqali userlarni olish va saqlash
+        await usersRepository.getAll();
         console.log('✅ Userlar offline uchun saqlandi');
       } catch (error) {
         console.error('❌ Userlarni sync qilishda xatolik:', error);

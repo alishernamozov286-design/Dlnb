@@ -84,7 +84,7 @@ const CreateCarModal: React.FC<CreateCarModalProps> = ({ isOpen, onClose }) => {
   const [loadingServices, setLoadingServices] = useState(false);
   const [isCreatingTasks, setIsCreatingTasks] = useState(false);
 
-  const { createCar, isOnline } = useCarsNew();
+  const { isOnline } = useCarsNew();
   const createTaskMutation = useCreateTask();
   const { data: usersData, isLoading: usersLoading } = useUsers();
   

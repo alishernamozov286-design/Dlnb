@@ -10,10 +10,12 @@ export interface Service {
   description: string;
   image?: string;
   imageUrl?: string;
-  isActive: boolean;
-  createdBy: string;
+  isActive?: boolean;
+  createdBy?: string;
   createdAt: string;
   updatedAt: string;
+  price?: number;
+  category?: string;
 }
 
 export const useServices = () => {
@@ -32,11 +34,11 @@ export const useServices = () => {
         // Online: API dan olish va saqlash
         try {
           const response = await api.get('/services');
-          const fetchedServices = response.data.services || [];
+          const fetchedServices: Service[] = response.data.services || [];
           
           // IndexedDB ga saqlash (offline uchun)
           for (const service of fetchedServices) {
-            await servicesRepository.db.put('carServices', service);
+            await servicesRepository['storage'].save('carServices', [service as any]);
           }
           
           setServices(fetchedServices);
@@ -44,12 +46,12 @@ export const useServices = () => {
           console.error('Online xizmatlarni yuklashda xatolik:', error);
           // Xatolik bo'lsa, offline dan yuklash
           const offlineServices = await servicesRepository.getAll();
-          setServices(offlineServices);
+          setServices(offlineServices as any);
         }
       } else {
         // Offline: IndexedDB dan olish
         const offlineServices = await servicesRepository.getAll();
-        setServices(offlineServices);
+        setServices(offlineServices as any);
       }
     } catch (error) {
       console.error('Xizmatlarni yuklashda xatolik:', error);

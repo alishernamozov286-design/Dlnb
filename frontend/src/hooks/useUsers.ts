@@ -28,7 +28,7 @@ export const useUsers = (role?: string) => {
           
           // IndexedDB ga saqlash (offline uchun)
           for (const user of fetchedUsers) {
-            await usersRepository.db.put('users', user);
+            await usersRepository['storage'].save('users', [user]);
           }
           
           setUsers(fetchedUsers);

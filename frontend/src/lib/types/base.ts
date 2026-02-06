@@ -91,3 +91,24 @@ export interface Debt extends BaseEntity {
   remainingAmount: number;
   type: 'service' | 'part' | 'other';
 }
+
+// User specific types
+export interface User extends BaseEntity {
+  name: string;
+  username: string;
+  role: 'master' | 'apprentice';
+  percentage?: number;
+  profileImage?: string;
+  isActive?: boolean;
+}
+
+// User specific types
+export interface User extends BaseEntity {
+  name: string;
+  username: string;
+  role: 'master' | 'apprentice';
+  percentage?: number;
+  phone?: string;
+  email?: string;
+  isActive?: boolean;
+}
