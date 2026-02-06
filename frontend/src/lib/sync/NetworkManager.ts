@@ -110,7 +110,7 @@ export class NetworkManager {
     this.updateStatus({ isChecking: true });
 
     try {
-      // Step 1: Check browser online status
+      // Step 1: Check browser online status FIRST
       const browserOnline = navigator.onLine;
 
       if (!browserOnline) {
@@ -126,23 +126,11 @@ export class NetworkManager {
         return;
       }
 
-      // Step 2: Check internet connectivity
-      const internetConnected = await this.checkInternetConnection();
-
-      if (!internetConnected) {
-        this.updateStatus({
-          isOnline: false,
-          internetConnected: false,
-          backendHealthy: false,
-          isChecking: false,
-          lastChecked: new Date()
-        });
-        this.isChecking = false;
-        return;
-      }
-
-      // Step 3: Check backend health
-      const backendHealthy = await this.checkBackendHealth();
+      // Step 2: Parallel check - internet va backend bir vaqtda
+      const [internetConnected, backendHealthy] = await Promise.all([
+        this.checkInternetConnection(),
+        this.checkBackendHealth()
+      ]);
 
       // Final status
       const isOnline = browserOnline && internetConnected && backendHealthy;
@@ -174,7 +162,7 @@ export class NetworkManager {
     try {
       // Try to fetch a small resource from a reliable external source
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 seconds instead of 5
+      const timeoutId = setTimeout(() => controller.abort(), 500); // 500ms (tezroq)
 
       await fetch('https://www.google.com/favicon.ico', {
         method: 'HEAD',
@@ -197,7 +185,7 @@ export class NetworkManager {
   private async checkBackendHealth(): Promise<boolean> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 seconds instead of 8
+      const timeoutId = setTimeout(() => controller.abort(), 800); // 800ms (tezroq)
 
       const response = await fetch('/api/health', {
         method: 'GET',

@@ -18,6 +18,7 @@ import { t } from '@/lib/transliteration';
 import Sidebar from './Sidebar';
 import { OfflineIndicator } from './OfflineIndicator';
 import { SyncStatusNotification } from './SyncStatusNotification';
+import { OfflineTransitionModal } from './OfflineTransitionModal';
 import { useLowStockCount } from '@/hooks/useSpareParts';
 import { useCompletedTasksCount } from '@/hooks/useTasks';
 import { useOverdueDebtsCount } from '@/hooks/useDebts';
@@ -129,6 +130,9 @@ const Layout: React.FC = () => {
       
       {/* Sync Status Notification */}
       <SyncStatusNotification />
+      
+      {/* Offline Transition Modal - Professional UI */}
+      <OfflineTransitionModal />
       
       {/* Mobile Header */}
       {isMobile && !isWarehousePage && (

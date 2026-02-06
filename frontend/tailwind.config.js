@@ -97,6 +97,18 @@ export default {
         'slide-up': 'slideUp 0.5s ease-out',
         'bounce-in': 'bounceIn 0.6s ease-out',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'fadeIn': 'fadeIn 0.3s ease-in-out',
+        'scaleIn': 'scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        scaleIn: {
+          '0%': { opacity: '0', transform: 'scale(0.9)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',

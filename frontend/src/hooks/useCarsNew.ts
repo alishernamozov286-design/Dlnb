@@ -33,7 +33,21 @@ export function useCarsNew() {
       }
       setError(null);
       
-      // OPTIMIZATION: Parallel operations
+      // INSTANT OFFLINE DETECTION: Check if offline first
+      const networkStatus = networkManager.getStatus();
+      
+      if (!networkStatus.isOnline) {
+        // FAST PATH: Load from IndexedDB immediately (50-100ms)
+        const data = await carsRepository.getAll();
+        setCars(data);
+        
+        if (!silent) {
+          setLoading(false);
+        }
+        return;
+      }
+      
+      // ONLINE PATH: Normal load with parallel operations
       const [data] = await Promise.all([
         carsRepository.getAll()
       ]);
@@ -48,7 +62,7 @@ export function useCarsNew() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [networkManager]);
 
   // Update pending count
   const updatePendingCount = useCallback(async () => {
