@@ -202,6 +202,12 @@ export abstract class BaseRepository<T extends BaseEntity> {
       const response = await api.get(this.getApiEndpoint());
       return this.extractDataFromResponse(response.data);
     } catch (error: any) {
+      // 401 Unauthorized - token yo'q yoki muddati tugagan
+      if (error?.response?.status === 401) {
+        console.log('⏭️ 401 Unauthorized - token yo\'q yoki muddati tugagan');
+        throw error;
+      }
+      
       // ERR_NETWORK_CHANGED is normal when switching from offline to online
       if (error?.message?.includes('network change') || error?.code === 'ERR_NETWORK_CHANGED') {
         // Retry once after network change
@@ -218,6 +224,12 @@ export abstract class BaseRepository<T extends BaseEntity> {
       const response = await api.post(this.getApiEndpoint(), data);
       return this.extractItemFromResponse(response.data);
     } catch (error: any) {
+      // 401 Unauthorized - token yo'q yoki muddati tugagan
+      if (error?.response?.status === 401) {
+        console.log('⏭️ 401 Unauthorized - token yo\'q yoki muddati tugagan');
+        throw error;
+      }
+      
       if (error?.message?.includes('network change') || error?.code === 'ERR_NETWORK_CHANGED') {
         await new Promise(resolve => setTimeout(resolve, 500));
         const response = await api.post(this.getApiEndpoint(), data);
@@ -232,6 +244,12 @@ export abstract class BaseRepository<T extends BaseEntity> {
       const response = await api.put(`${this.getApiEndpoint()}/${id}`, data);
       return this.extractItemFromResponse(response.data);
     } catch (error: any) {
+      // 401 Unauthorized - token yo'q yoki muddati tugagan
+      if (error?.response?.status === 401) {
+        console.log('⏭️ 401 Unauthorized - token yo\'q yoki muddati tugagan');
+        throw error;
+      }
+      
       if (error?.message?.includes('network change') || error?.code === 'ERR_NETWORK_CHANGED') {
         await new Promise(resolve => setTimeout(resolve, 500));
         const response = await api.put(`${this.getApiEndpoint()}/${id}`, data);
@@ -245,6 +263,12 @@ export abstract class BaseRepository<T extends BaseEntity> {
     try {
       await api.delete(`${this.getApiEndpoint()}/${id}`);
     } catch (error: any) {
+      // 401 Unauthorized - token yo'q yoki muddati tugagan
+      if (error?.response?.status === 401) {
+        console.log('⏭️ 401 Unauthorized - token yo\'q yoki muddati tugagan');
+        throw error;
+      }
+      
       if (error?.message?.includes('network change') || error?.code === 'ERR_NETWORK_CHANGED') {
         await new Promise(resolve => setTimeout(resolve, 500));
         await api.delete(`${this.getApiEndpoint()}/${id}`);

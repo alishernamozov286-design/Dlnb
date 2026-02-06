@@ -286,6 +286,13 @@ function App() {
   React.useEffect(() => {
     const syncUsers = async () => {
       try {
+        // Faqat token mavjud bo'lsa sync qilish
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.log('⏭️ Token yo\'q, sync qilinmadi');
+          return;
+        }
+
         const { usersRepository } = await import('@/lib/repositories/UsersRepository');
         // getAll() orqali userlarni olish va saqlash
         await usersRepository.getAll();
