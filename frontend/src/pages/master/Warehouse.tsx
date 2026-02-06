@@ -7,7 +7,6 @@ import {
   Trash2,
   Eye,
   AlertCircle,
-  TrendingDown,
   Box,
   ArrowLeft
 } from 'lucide-react';
