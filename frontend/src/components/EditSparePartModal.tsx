@@ -343,7 +343,13 @@ const EditSparePartModal: React.FC<EditSparePartModalProps> = ({ isOpen, onClose
     // Optimistic update - darhol yangilangan ma'lumotni yaratish
     const optimisticUpdate = {
       ...sparePart,
-      name: formData.name,
+      name: formData.category === 'balon' 
+        ? formData.name 
+        : formData.category === 'zapchast' && !formData.name.startsWith(t('Zapchast', language))
+          ? `${t('Zapchast', language)} ${formData.name}`
+          : formData.category === 'boshqa' && !formData.name.startsWith(t('Boshqa', language))
+            ? `${t('Boshqa', language)} ${formData.name}`
+            : formData.name,
       costPrice: costPrice,
       sellingPrice: sellingPrice,
       price: sellingPrice,
@@ -366,8 +372,18 @@ const EditSparePartModal: React.FC<EditSparePartModalProps> = ({ isOpen, onClose
 
     // Background'da backend'ga yuborish
     try {
+      // Kategoriya nomini qo'shish (agar yo'q bo'lsa)
+      let finalName = formData.name;
+      
+      // Agar nom kategoriya nomi bilan boshlanmasa, qo'shish
+      if (formData.category === 'zapchast' && !finalName.startsWith(t('Zapchast', language))) {
+        finalName = `${t('Zapchast', language)} ${finalName}`;
+      } else if (formData.category === 'boshqa' && !finalName.startsWith(t('Boshqa', language))) {
+        finalName = `${t('Boshqa', language)} ${finalName}`;
+      }
+      
       await api.put(`/spare-parts/${sparePart._id}`, {
-        name: formData.name,
+        name: finalName,
         costPrice: costPrice,
         sellingPrice: sellingPrice,
         price: sellingPrice,

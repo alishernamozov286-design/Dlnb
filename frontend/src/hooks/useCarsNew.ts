@@ -12,6 +12,7 @@ import { QueueManager } from '@/lib/sync/QueueManager';
 import { SyncManager } from '@/lib/sync/SyncManager';
 import { Car } from '@/lib/types/base';
 import toast from 'react-hot-toast';
+import api from '@/lib/api';
 
 export function useCarsNew() {
   // ⚡ INSTANT LOADING: Initial state'ni localStorage'dan olish (0ms)
@@ -248,19 +249,79 @@ export function useCarsNew() {
   // Delete car - OPTIMIZED (instant UI update, silent)
   const deleteCar = useCallback(async (id: string) => {
     try {
-      // OPTIMIZATION 1: INSTANT UI update (no await)
+      // OPTIMIZATION 1: INSTANT UI update (no await) - faqat faol ro'yxatdan olib tashlash
       setCars(prev => prev.filter(car => car._id !== id));
       
-      // OPTIMIZATION 2: Fire and forget for non-critical operations
-      carsRepository.delete(id).then(() => {
-        updatePendingCount();
-      }).catch(err => {
-        console.error('Failed to delete car:', err);
-        // Rollback on error
-        loadCars(true); // silent reload
-      });
+      // OPTIMIZATION 2: Soft delete - arxivga o'tkazish
+      if (isOnline && !id.startsWith('temp_')) {
+        // Online: Server'ga soft delete so'rovi yuborish
+        api.delete(`/cars/${id}`).then(() => {
+          updatePendingCount();
+        }).catch((err: any) => {
+          console.error('Failed to delete car:', err);
+          // Rollback on error
+          loadCars(true); // silent reload
+        });
+      } else {
+        // Offline yoki temp: IndexedDB'da soft delete
+        carsRepository.update(id, { 
+          isDeleted: true, 
+          deletedAt: new Date().toISOString() 
+        }).then(() => {
+          updatePendingCount();
+        }).catch((err: any) => {
+          console.error('Failed to delete car:', err);
+          loadCars(true);
+        });
+      }
     } catch (err: any) {
       console.error('Failed to delete car:', err);
+      toast.error(`Xatolik: ${err.message}`);
+      
+      // Rollback on error
+      await loadCars();
+      throw err;
+    }
+  }, [isOnline, updatePendingCount, loadCars]);
+
+  // Restore car - OPTIMIZED (instant UI update, silent)
+  const restoreCar = useCallback(async (id: string) => {
+    try {
+      // OPTIMIZATION 1: INSTANT UI update - arxivdan faol ro'yxatga qaytarish
+      setCars(prev => prev.map(car => 
+        car._id === id ? { ...car, isDeleted: false, deletedAt: undefined, _pending: !isOnline } : car
+      ));
+      
+      // OPTIMIZATION 2: Backend'ga restore so'rovi yuborish
+      if (isOnline && !id.startsWith('temp_')) {
+        // Online: Server'ga restore so'rovi yuborish
+        api.post(`/cars/${id}/restore`).then(() => {
+          updatePendingCount();
+          toast.success('✅ Mashina muvaffaqiyatli qaytarildi');
+          // Background'da yangilash
+          loadCars(true);
+        }).catch((err: any) => {
+          console.error('Failed to restore car:', err);
+          toast.error(`Xatolik: ${err.message}`);
+          // Rollback on error
+          loadCars(true); // silent reload
+        });
+      } else {
+        // Offline yoki temp: IndexedDB'da restore
+        carsRepository.update(id, { 
+          isDeleted: false,
+          deletedAt: undefined
+        }).then(() => {
+          updatePendingCount();
+          toast.success('✅ Mashina muvaffaqiyatli qaytarildi (offline)');
+        }).catch((err: any) => {
+          console.error('Failed to restore car:', err);
+          toast.error(`Xatolik: ${err.message}`);
+          loadCars(true);
+        });
+      }
+    } catch (err: any) {
+      console.error('Failed to restore car:', err);
       toast.error(`Xatolik: ${err.message}`);
       
       // Rollback on error
@@ -323,7 +384,9 @@ export function useCarsNew() {
     createCar,
     updateCar,
     deleteCar,
+    restoreCar,
     refresh,
-    syncNow
+    syncNow,
+    getArchivedCars: () => carsRepository.getArchivedCars()
   };
 }

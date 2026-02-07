@@ -61,11 +61,9 @@ export abstract class BaseRepository<T extends BaseEntity> {
         // Non-blocking cache update (fire and forget)
         this.storage.replaceServerData(this.config.collection, filteredServerData);
         
-        // Apply soft delete filter if needed
-        if (this.config.useSoftDelete) {
-          return filteredServerData.filter((item: any) => !item.isDeleted);
-        }
-        
+        // IMPORTANT: Do NOT filter soft deleted items here!
+        // Let the application layer decide what to show (active vs archived)
+        // Soft delete is only for preventing accidental permanent deletion
         return filteredServerData;
       } catch (error) {
         return await this.getMergedData();
@@ -300,13 +298,10 @@ export abstract class BaseRepository<T extends BaseEntity> {
         .map(op => op.data._id)
     );
     
-    // Single-pass filter
-    let filteredData = allData.filter(item => !pendingDeleteIds.has(item._id));
-    
-    // Soft delete filter
-    if (this.config.useSoftDelete) {
-      filteredData = filteredData.filter((item: any) => !item.isDeleted);
-    }
+    // Single-pass filter - only remove pending deletes
+    // IMPORTANT: Do NOT filter soft deleted items here!
+    // Let the application layer decide what to show (active vs archived)
+    const filteredData = allData.filter(item => !pendingDeleteIds.has(item._id));
     
     return filteredData;
   }

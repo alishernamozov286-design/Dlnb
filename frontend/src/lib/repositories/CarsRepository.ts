@@ -7,6 +7,7 @@
 import { BaseRepository } from '@/lib/repositories/BaseRepository';
 import { Car, CarPart, ServiceItem } from '@/lib/types/base';
 import { ValidationError } from '@/lib/utils/errors';
+import api from '@/lib/api';
 
 export class CarsRepository extends BaseRepository<Car> {
   constructor() {
@@ -171,6 +172,35 @@ export class CarsRepository extends BaseRepository<Car> {
   async getActiveCars(): Promise<Car[]> {
     const allCars = await this.getAll();
     return allCars.filter(car => !car.isDeleted);
+  }
+
+  async getArchivedCars(): Promise<Car[]> {
+    // Arxivlangan mashinalarni serverdan olish
+    if (this.networkManager.isOnline()) {
+      try {
+        const response = await api.get('/cars/archived/list');
+        const archivedCars = response.data?.cars || [];
+        
+        // Cache'ga saqlash (non-blocking)
+        this.storage.save(this.config.collection, archivedCars);
+        
+        return archivedCars;
+      } catch (error) {
+        console.error('Failed to fetch archived cars from server:', error);
+        // Fallback to IndexedDB
+        const allCars = await this.storage.getAll<Car>(this.config.collection);
+        return allCars.filter(car => car.isDeleted);
+      }
+    } else {
+      // Offline: IndexedDB'dan olish
+      const allCars = await this.storage.getAll<Car>(this.config.collection);
+      return allCars.filter(car => car.isDeleted);
+    }
+  }
+
+  async getAllCarsIncludingArchived(): Promise<Car[]> {
+    // IndexedDB'dan barcha mashinalarni olish (arxivlangan ham)
+    return this.storage.getAll<Car>(this.config.collection);
   }
 
   async getCarsByStatus(status: Car['status']): Promise<Car[]> {

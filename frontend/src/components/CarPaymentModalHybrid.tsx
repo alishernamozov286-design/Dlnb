@@ -6,6 +6,7 @@ import { formatCurrency, formatNumber, parseFormattedNumber } from '@/lib/utils'
 import { useCarsNew } from '@/hooks/useCarsNew';
 import { useCreateTransaction } from '@/hooks/useTransactions';
 import { useCarServices } from '@/hooks/useCarServices';
+import { useQueryClient } from '@tanstack/react-query';
 // import { IndexedDBManager } from '@/lib/storage/IndexedDBManager'; // Not used
 import toast from 'react-hot-toast';
 
@@ -31,6 +32,7 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
 
   const { updateCar } = useCarsNew();
   const createTransactionMutation = useCreateTransaction();
+  const queryClient = useQueryClient();
   
   // ⚡ INSTANT LOADING: useCarServices hook bilan xizmatlarni cache'dan yuklash
   const { data: carServicesData } = useCarServices({ carId: car?._id });
@@ -259,52 +261,35 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
 
         // To'lovlarni qo'shish
         if (serviceToUse) {
+          console.log('🔵 To\'lovlarni yuborish boshlandi:', {
+            serviceId: serviceToUse._id,
+            cash,
+            card,
+            totalPayment
+          });
+          
           // Naqd to'lovni qo'shish
           if (cash > 0) {
-            await api.post(`/car-services/${serviceToUse._id}/payment`, {
+            console.log(`🔵 Naqd to'lov yuborilmoqda: ${cash} so'm`);
+            const cashResponse = await api.post(`/car-services/${serviceToUse._id}/payment`, {
               amount: cash,
               paymentMethod: 'cash',
               notes: t('Naqd', language)
             });
-            console.log(`💵 Naqd to'lov qo'shildi: ${cash} so'm`);
-            
-            // ✨ YANGI: Tranzaksiya yaratish (kassa sahifasida ko'rinishi uchun)
-            await createTransactionMutation.mutateAsync({
-              type: 'income',
-              category: t('Mashina to\'lovi', language),
-              amount: cash,
-              description: `${car.make} ${car.carModel} - ${car.licensePlate} (${t('Naqd', language)})`,
-              paymentMethod: 'cash',
-              relatedTo: {
-                type: 'car',
-                id: car._id
-              }
-            });
-            console.log(`✅ Naqd tranzaksiya yaratildi: ${cash} so'm`);
+            console.log(`💵 Naqd to'lov qo'shildi:`, cashResponse.data);
+            // Backend allaqachon transaction yaratadi, frontend'da yaratish kerak emas
           }
           
           // Plastik to'lovni qo'shish
           if (card > 0) {
-            await api.post(`/car-services/${serviceToUse._id}/payment`, {
+            console.log(`🔵 Plastik to'lov yuborilmoqda: ${card} so'm`);
+            const cardResponse = await api.post(`/car-services/${serviceToUse._id}/payment`, {
               amount: card,
               paymentMethod: 'card',
               notes: t('Plastik', language)
             });
-            console.log(`💳 Plastik to'lov qo'shildi: ${card} so'm`);
-            
-            // ✨ YANGI: Tranzaksiya yaratish (kassa sahifasida ko'rinishi uchun)
-            await createTransactionMutation.mutateAsync({
-              type: 'income',
-              category: t('Mashina to\'lovi', language),
-              amount: card,
-              description: `${car.make} ${car.carModel} - ${car.licensePlate} (${t('Plastik', language)})`,
-              paymentMethod: 'card',
-              relatedTo: {
-                type: 'car',
-                id: car._id
-              }
-            });
-            console.log(`✅ Plastik tranzaksiya yaratildi: ${card} so'm`);
+            console.log(`💳 Plastik to'lov qo'shildi:`, cardResponse.data);
+            // Backend allaqachon transaction yaratadi, frontend'da yaratish kerak emas
           }
         }
       } else {
@@ -350,6 +335,11 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
       }
       
       console.log('✅ To\'lov muvaffaqiyatli saqlandi (background)');
+      
+      // ✅ YANGI: Transactions cache'ni invalidate qilish (Kassa sahifasi yangilanadi)
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['transactionSummary'] });
+      console.log('🔄 Transactions cache yangilandi');
     } catch (error: any) {
       console.error('❌ To\'lov xatosi (background):', error);
       // Xatolik bo'lsa ham foydalanuvchi ko'rmaydi, chunki modal allaqachon yopilgan

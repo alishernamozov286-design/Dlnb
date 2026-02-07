@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCarsNew } from '@/hooks/useCarsNew';
 import { useBackendStatus } from '@/hooks/useBackendStatus';
 import { useDebts } from '@/hooks/useDebts';
@@ -9,12 +10,15 @@ import EditCarStepModal from '@/components/EditCarStepModal';
 import DeleteCarModal from '@/components/DeleteCarModal';
 import RestoreCarModal from '@/components/RestoreCarModal';
 import CompleteCarModal from '@/components/CompleteCarModal';
-import {Plus,Search, Car as CarIcon, Eye, Edit, Trash2, Phone, Package2, Filter, CheckCircle, RotateCcw, DollarSign, Users, ClipboardList, X, XCircle} from 'lucide-react';
+import CarPaymentModalHybrid from '@/components/CarPaymentModalHybrid';
+import {Plus,Search, Car as CarIcon, Eye, Edit, Trash2, Phone, Package2, Filter, CheckCircle, RotateCcw, DollarSign, Users, ClipboardList, X, XCircle, MessageSquare} from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { Car } from '@/types';
 import { t } from '@/lib/transliteration';
+import toast from 'react-hot-toast';
 
 const Cars: React.FC = () => {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'archive'>('active');
@@ -25,6 +29,7 @@ const Cars: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   
   // State for task approval modal
   const [showApprovalModal, setShowApprovalModal] = useState(false);
@@ -41,14 +46,47 @@ const Cars: React.FC = () => {
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   }, []);
 
+  // SMS matni yaratish funksiyasi
+  const getSmsMessage = (car: Car) => {
+    const remaining = car.totalEstimate - (car.paidAmount || 0);
+    
+    let message = '';
+    
+    if (car.status === 'completed' || car.status === 'delivered') {
+      // To'liq tugallangan mashinalar uchun
+      message = `Hurmatli ${car.ownerName}, sizning ${car.make} ${car.carModel} (${car.licensePlate}) mashinangiz to'liq ta'mirlandi. Xizmat haqi: ${formatCurrency(car.totalEstimate)}. Rahmat!`;
+    } else if (remaining > 0) {
+      // Qarzi bor mashinalar uchun
+      message = `Hurmatli ${car.ownerName}, sizning ${car.make} ${car.carModel} (${car.licensePlate}) mashinangiz ta'mirda. Jami: ${formatCurrency(car.totalEstimate)}, To'langan: ${formatCurrency(car.paidAmount || 0)}, Qoldi: ${formatCurrency(remaining)}. Rahmat!`;
+    } else {
+      // Oddiy xabar
+      message = `Hurmatli ${car.ownerName}, sizning ${car.make} ${car.carModel} (${car.licensePlate}) mashinangiz haqida ma'lumot. Xizmat haqi: ${formatCurrency(car.totalEstimate)}. Rahmat!`;
+    }
+    
+    return message;
+  };
+
   // Backend status
   const { isOnline } = useBackendStatus();
 
   // New hook - avtomatik online/offline rejimni boshqaradi
   const { 
     cars, 
-    updateCar
+    updateCar,
+    getArchivedCars
   } = useCarsNew();
+
+  // Arxivlangan mashinalarni olish
+  const [archivedCarsData, setArchivedCarsData] = React.useState<Car[]>([]);
+  
+  React.useEffect(() => {
+    if (activeTab === 'archive') {
+      getArchivedCars().then(setArchivedCarsData).catch(err => {
+        console.error('Failed to load archived cars:', err);
+        toast.error('Arxivlangan mashinalarni yuklashda xatolik');
+      });
+    }
+  }, [activeTab, getArchivedCars]);
 
   // Qarzlar ro'yxatini olish (qarzi bor mashinalarni aniqlash uchun) - faqat online holatda
   const { data: debtsData } = useDebts({ type: 'receivable' });
@@ -110,25 +148,43 @@ const Cars: React.FC = () => {
   );
   
   // ⚡ OPTIMIZED: Arxiv mashinalar - memoized
-  const archivedCars = React.useMemo(() => 
-    filteredCars.filter((car: Car) => {
-      // Offline holatda arxiv bo'sh
-      if (!isOnline) {
-        return false;
-      }
-      // Online holatda to'liq arxiv
+  const archivedCars = React.useMemo(() => {
+    // Agar arxiv tab'da bo'lsak, serverdan olingan ma'lumotlarni ishlatamiz
+    if (activeTab === 'archive' && archivedCarsData.length > 0) {
+      return archivedCarsData.filter((car: Car) => {
+        // Qidiruv va filtr
+        if (searchTerm) {
+          const search = searchTerm.toLowerCase();
+          const matches = car.licensePlate?.toLowerCase().includes(search) ||
+            car.ownerPhone?.toLowerCase().includes(search) ||
+            car.ownerName?.toLowerCase().includes(search) ||
+            car.make?.toLowerCase().includes(search) ||
+            car.carModel?.toLowerCase().includes(search);
+          if (!matches) return false;
+        }
+        
+        if (statusFilter && car.status !== statusFilter) {
+          return false;
+        }
+        
+        return true;
+      });
+    }
+    
+    // Aks holda, local ma'lumotlardan filtrlash
+    return filteredCars.filter((car: Car) => {
+      // Arxivlangan mashinalar: isDeleted yoki to'liq to'langan
       return car.isDeleted || 
              car.status === 'completed' || 
              car.status === 'delivered' ||
              carsWithActiveDebtIds.has(car._id);
-    }),
-    [filteredCars, isOnline, carsWithActiveDebtIds]
-  );
+    });
+  }, [activeTab, archivedCarsData, filteredCars, carsWithActiveDebtIds, searchTerm, statusFilter]);
   
   // ⚡ OPTIMIZED: Ko'rsatiladigan mashinalar - memoized
   const displayedCars = React.useMemo(() => 
-    (!isOnline || activeTab === 'active') ? activeCars : archivedCars,
-    [isOnline, activeTab, activeCars, archivedCars]
+    activeTab === 'active' ? activeCars : archivedCars,
+    [activeTab, activeCars, archivedCars]
   );
 
   const handleViewCar = (car: Car) => {
@@ -144,6 +200,11 @@ const Cars: React.FC = () => {
   const handleDeleteCar = (car: Car) => {
     setSelectedCar(car);
     setIsDeleteModalOpen(true);
+  };
+
+  const handlePaymentCar = (car: Car) => {
+    setSelectedCar(car);
+    setIsPaymentModalOpen(true);
   };
 
   const handleEditFromView = () => {
@@ -339,9 +400,8 @@ const Cars: React.FC = () => {
           </div>
         </div>
 
-        {/* Tabs - Faol va Arxiv - Compact Right - Faqat online holatda */}
-        {isOnline && (
-          <div className="flex justify-end">
+        {/* Tabs - Faol va Arxiv - Compact Right */}
+        <div className="flex justify-end">
             <div className="inline-flex bg-white/80 backdrop-blur-sm rounded-lg shadow-sm border border-gray-200/50 p-0.5">
               <button
                 onClick={() => setActiveTab('active')}
@@ -381,7 +441,6 @@ const Cars: React.FC = () => {
               </button>
             </div>
           </div>
-        )}
 
         {/* Cars Grid */}
         {displayedCars.length === 0 ? (
@@ -571,6 +630,25 @@ const Cars: React.FC = () => {
                               <Eye className="h-4 w-4 mr-1.5 group-hover:scale-110 transition-transform" />
                               <span className="text-sm">{t("Ko'rish", language)}</span>
                             </button>
+                            
+                            {/* SMS Button - Arxivdagi mashinalar uchun */}
+                            {car.ownerPhone && (
+                              <a
+                                href={`sms:${car.ownerPhone}?body=${encodeURIComponent(getSmsMessage(car))}`}
+                                className="inline-flex items-center px-3 py-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-lg transition-all duration-200 font-medium group"
+                                title={t("SMS yuborish", language)}
+                                onClick={(e) => {
+                                  if (!/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                                    e.preventDefault();
+                                    toast.error(t('SMS yuborish faqat mobil qurilmalarda ishlaydi', language));
+                                  }
+                                }}
+                              >
+                                <MessageSquare className="h-4 w-4 mr-1.5 group-hover:scale-110 transition-transform" />
+                                <span className="text-sm">{t("SMS", language)}</span>
+                              </a>
+                            )}
+                            
                             {car.isDeleted && (
                               <button
                                 onClick={() => handleRestoreCar(car)}
@@ -631,7 +709,7 @@ const Cars: React.FC = () => {
               // Backend dan kelgan totalEstimate ni ishlatish, agar mavjud bo'lsa
               const displayTotal = car.totalEstimate || calculatedTotal;
               
-              return <CarCard key={car._id} car={car} displayTotal={displayTotal} language={language} onView={handleViewCar} onEdit={handleEditCar} onDelete={handleDeleteCar} onComplete={handleCompleteCar} onApproveTask={handleApproveTask} />;
+              return <CarCard key={car._id} car={car} displayTotal={displayTotal} language={language} onView={handleViewCar} onEdit={handleEditCar} onDelete={handleDeleteCar} onComplete={handleCompleteCar} onApproveTask={handleApproveTask} onPayment={handlePaymentCar} getSmsMessage={getSmsMessage} />;
             })}
           </div>
         )}
@@ -680,6 +758,30 @@ const Cars: React.FC = () => {
               // Refresh cars data after completion
               window.location.reload();
             }}
+          />
+          
+          <CarPaymentModalHybrid
+            isOpen={isPaymentModalOpen}
+            onClose={() => {
+              setIsPaymentModalOpen(false);
+              setSelectedCar(null);
+            }}
+            onSuccess={() => {
+              // ⚡ INSTANT: Cache'ni darhol yangilash (IncomeModal'dagi kabi)
+              // Bu kassa sahifasida ham kirim ko'rinishini ta'minlaydi
+              queryClient.invalidateQueries({ queryKey: ['cars'] });
+              queryClient.invalidateQueries({ queryKey: ['transactions'] });
+              queryClient.invalidateQueries({ queryKey: ['transactionSummary'] });
+              queryClient.invalidateQueries({ queryKey: ['transaction-summary'] });
+              queryClient.invalidateQueries({ queryKey: ['transactionStats'] });
+              queryClient.invalidateQueries({ queryKey: ['transaction-stats'] });
+              queryClient.invalidateQueries({ queryKey: ['car-services'] });
+              
+              // Modal yopish
+              setIsPaymentModalOpen(false);
+              setSelectedCar(null);
+            }}
+            car={selectedCar}
           />
         </>
       )}
@@ -792,7 +894,9 @@ const CarCard: React.FC<{
   onDelete: (car: Car) => void;
   onComplete: (car: Car) => void;
   onApproveTask: (task: any) => void;
-}> = ({ car, displayTotal, language, onView, onEdit, onDelete, onComplete, onApproveTask }) => {
+  onPayment: (car: Car) => void;
+  getSmsMessage: (car: Car) => string; // SMS funksiyasi
+}> = ({ car, displayTotal, language, onView, onEdit, onDelete, onComplete, onApproveTask, onPayment, getSmsMessage }) => {
   // Fetch tasks for this car ONLY
   const { data: tasksData } = useTasks({ car: car._id });
   const tasks = tasksData?.tasks || [];
@@ -963,6 +1067,21 @@ const CarCard: React.FC<{
             <span className="text-xs sm:text-sm">{t("Ko'rish", language)}</span>
           </button>
           
+          {/* Payment Button - Show if car has remaining balance */}
+          {(() => {
+            const remaining = displayTotal - (car.paidAmount || 0);
+            return remaining > 0 && (
+              <button 
+                onClick={() => onPayment(car)}
+                className="flex-1 flex items-center justify-center space-x-1 sm:space-x-2 px-3 py-2 sm:py-2.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg sm:rounded-xl transition-all duration-200 font-medium group"
+                title={t("To'lov", language)}
+              >
+                <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 group-hover:scale-110 transition-transform" />
+                <span className="text-xs sm:text-sm">{t("To'lov", language)}</span>
+              </button>
+            );
+          })()}
+          
           {/* Complete Button - Only for in-progress cars */}
           {car.status === 'in-progress' && (
             <button 
@@ -972,6 +1091,24 @@ const CarCard: React.FC<{
             >
               <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
             </button>
+          )}
+          
+          {/* SMS Button - Barcha mashinalar uchun (telefon raqami bo'lsa) */}
+          {car.ownerPhone && (
+            <a 
+              href={`sms:${car.ownerPhone}?body=${encodeURIComponent(getSmsMessage(car))}`}
+              className="p-2 sm:p-2.5 bg-purple-50 text-purple-600 hover:bg-purple-100 hover:text-purple-700 rounded-lg sm:rounded-xl transition-all duration-200 group"
+              title={t("SMS yuborish", language)}
+              onClick={(e) => {
+                // Mobile qurilmalarda to'g'ri ishlashi uchun
+                if (!/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                  e.preventDefault();
+                  toast.error(t('SMS yuborish faqat mobil qurilmalarda ishlaydi', language));
+                }
+              }}
+            >
+              <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 group-hover:scale-110 transition-transform" />
+            </a>
           )}
           
           <button 

@@ -37,6 +37,19 @@ const MonthlyResetModal: React.FC<MonthlyResetModalProps> = ({
       await onConfirm();
       setShowSuccess(true);
       
+      // Cache'ni tozalash
+      try {
+        // Transactions cache'ni tozalash
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+          if (key.startsWith('rq_cache_') || key.includes('transactions') || key.includes('summary')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch (err) {
+        console.error('Cache clear error:', err);
+      }
+      
       // 2 soniyadan keyin sahifani yangilash
       setTimeout(() => {
         window.location.reload();

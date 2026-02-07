@@ -13,7 +13,7 @@ interface RestoreCarModalProps {
 
 const RestoreCarModal: React.FC<RestoreCarModalProps> = ({ isOpen, onClose, car }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { updateCar } = useCarsNew();
+  const { restoreCar } = useCarsNew();
   
   // localStorage'dan tilni o'qish
   const language = React.useMemo<'latin' | 'cyrillic'>(() => {
@@ -27,7 +27,7 @@ const RestoreCarModal: React.FC<RestoreCarModalProps> = ({ isOpen, onClose, car 
   const handleRestore = async () => {
     try {
       setIsLoading(true);
-      await updateCar(car._id, { isDeleted: false });
+      await restoreCar(car._id);
       onClose();
     } catch (error) {
       console.error('Error restoring car:', error);

@@ -72,10 +72,30 @@ const MasterWarehouse: React.FC = memo(() => {
     if (!debouncedSearch) return spareParts;
     
     const searchLower = debouncedSearch.toLowerCase();
-    return spareParts.filter((part: any) =>
-      part.name.toLowerCase().includes(searchLower) ||
-      part.supplier?.toLowerCase().includes(searchLower)
-    );
+    return spareParts.filter((part: any) => {
+      // Nom bo'yicha qidirish
+      const nameMatch = part.name.toLowerCase().includes(searchLower);
+      
+      // Supplier bo'yicha qidirish
+      const supplierMatch = part.supplier?.toLowerCase().includes(searchLower);
+      
+      // Kategoriya bo'yicha qidirish
+      const categoryMatch = part.category && (
+        (part.category === 'balon' && ('balon'.includes(searchLower) || 'tire'.includes(searchLower))) ||
+        (part.category === 'zapchast' && ('zapchast'.includes(searchLower) || 'spare'.includes(searchLower))) ||
+        (part.category === 'boshqa' && ('boshqa'.includes(searchLower) || 'other'.includes(searchLower)))
+      );
+      
+      // Balon ma'lumotlari bo'yicha qidirish
+      const tireMatch = part.category === 'balon' && (
+        (part.tireSize && part.tireSize.toLowerCase().includes(searchLower)) ||
+        (part.tireFullSize && part.tireFullSize.toLowerCase().includes(searchLower)) ||
+        (part.tireBrand && part.tireBrand.toLowerCase().includes(searchLower)) ||
+        (part.tireType && part.tireType.toLowerCase().includes(searchLower))
+      );
+      
+      return nameMatch || supplierMatch || categoryMatch || tireMatch;
+    });
   }, [spareParts, debouncedSearch]);
 
   const lowStockParts = useMemo(() => {
@@ -505,16 +525,45 @@ const MasterWarehouse: React.FC = memo(() => {
                         <h4 className="font-bold text-base text-gray-900 line-clamp-2 min-h-[3rem]">
                           {part.name}
                         </h4>
-                        {/* Kategoriya badge */}
-                        {part.category && part.category !== 'zapchast' && (
-                          <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-full ${
-                            part.category === 'balon' 
-                              ? 'bg-blue-100 text-blue-700 border border-blue-300' 
-                              : 'bg-gray-100 text-gray-700 border border-gray-300'
-                          }`}>
-                            {part.category === 'balon' ? t('Balon', language) : t('Boshqa', language)}
-                            {part.category === 'balon' && part.tireSize && ` - ${part.tireSize}`}
-                          </span>
+                        
+                        {/* Kategoriya va balon ma'lumotlari */}
+                        {part.category === 'balon' && (
+                          <div className="mt-2 space-y-1">
+                            <span className="inline-block px-2 py-0.5 text-xs font-semibold rounded-full bg-orange-100 text-orange-700 border border-orange-300">
+                              🚗 {t('Balon', language)}
+                            </span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {part.tireSize && (
+                                <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+                                  {part.tireSize}
+                                </span>
+                              )}
+                              {part.tireFullSize && (
+                                <span className="px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">
+                                  {part.tireFullSize}
+                                </span>
+                              )}
+                              {part.tireBrand && (
+                                <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">
+                                  {part.tireBrand}
+                                </span>
+                              )}
+                              {part.tireType && (
+                                <span className="px-1.5 py-0.5 text-xs font-medium bg-cyan-100 text-cyan-700 rounded">
+                                  {part.tireType === 'yozgi' ? '☀️' : part.tireType === 'qishki' ? '❄️' : '🔄'} {part.tireType}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Zapchast va boshqa kategoriyalar uchun */}
+                        {(part.category === 'zapchast' || part.category === 'boshqa') && (
+                          <div className="mt-2">
+                            <span className="inline-block px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 border border-blue-300">
+                              {part.category === 'zapchast' ? '🔧 ' + t('Zapchast', language) : '📦 ' + t('Boshqa', language)}
+                            </span>
+                          </div>
                         )}
                       </div>
 

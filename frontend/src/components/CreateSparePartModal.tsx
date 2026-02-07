@@ -75,6 +75,13 @@ const CreateSparePartModal: React.FC<CreateSparePartModalProps> = ({ isOpen, onC
     }
   }, [formData.category, formData.tireSize, formData.tireBrand, formData.tireType]);
 
+  // Kategoriya o'zgarganda nomni tozalash
+  React.useEffect(() => {
+    if (formData.category !== 'balon') {
+      setFormData(prev => ({ ...prev, name: '' }));
+    }
+  }, [formData.category]);
+
   // Balon kategoriyalari va ularga tegishli o'lchamlar - TO'LIQ RO'YXAT
   const tireSizeOptions: Record<string, string[]> = {
     // R22.5 - Eng keng tarqalgan fura o'lchami (Standart fura)
@@ -252,7 +259,9 @@ const CreateSparePartModal: React.FC<CreateSparePartModalProps> = ({ isOpen, onC
     // Yangi tovar obyektini yaratish (optimistic)
     const newPart = {
       _id: 'temp-' + Date.now(), // Vaqtinchalik ID
-      name: formData.name,
+      name: formData.category === 'balon' 
+        ? formData.name 
+        : `${formData.category === 'zapchast' ? t('Zapchast', language) : t('Boshqa', language)} ${formData.name}`,
       costPrice: costPrice,
       sellingPrice: sellingPrice,
       price: sellingPrice,
@@ -295,8 +304,16 @@ const CreateSparePartModal: React.FC<CreateSparePartModalProps> = ({ isOpen, onC
 
     // 2. Background'da API so'rovini yuborish
     try {
+      // Kategoriya nomini qo'shish
+      let finalName = formData.name;
+      if (formData.category === 'zapchast') {
+        finalName = `${t('Zapchast', language)} ${formData.name}`;
+      } else if (formData.category === 'boshqa') {
+        finalName = `${t('Boshqa', language)} ${formData.name}`;
+      }
+      
       const response = await api.post('/spare-parts', {
-        name: formData.name,
+        name: finalName,
         costPrice: costPrice,
         sellingPrice: sellingPrice,
         price: sellingPrice,
@@ -584,26 +601,42 @@ const CreateSparePartModal: React.FC<CreateSparePartModalProps> = ({ isOpen, onC
           {formData.category !== 'balon' && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                {t('Zapchast nomi', language)} *
+                {formData.category === 'zapchast' ? t('Zapchast nomi', language) : t('Tovar nomi', language)} *
               </label>
-              <input
-                type="text"
-                name="name"
-                required
-                value={formData.name}
-                onChange={handleChange}
-                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none transition-all ${
-                  errors.name 
-                    ? 'border-red-300 focus:border-red-500' 
-                    : 'border-gray-200 focus:border-blue-500'
-                }`}
-                placeholder={t('Masalan: Tormoz kolodkasi', language)}
-              />
+              <div className="flex gap-2">
+                <div className="flex-shrink-0 px-3 py-2 text-sm bg-blue-50 border border-blue-200 rounded-lg font-medium text-blue-700">
+                  {formData.category === 'zapchast' ? t('Zapchast', language) : t('Boshqa', language)}
+                </div>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  value={formData.name}
+                  onChange={handleChange}
+                  className={`flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none transition-all ${
+                    errors.name 
+                      ? 'border-red-300 focus:border-red-500' 
+                      : 'border-gray-200 focus:border-blue-500'
+                  }`}
+                  placeholder={formData.category === 'zapchast' ? t('Masalan: Tormoz kolodkasi', language) : t('Masalan: Yog\'', language)}
+                />
+              </div>
               {errors.name && (
                 <p className="mt-1 text-[10px] text-red-600 flex items-center gap-1">
                   <AlertCircle className="h-2.5 w-2.5" />
                   {errors.name}
                 </p>
+              )}
+              {/* Avtomatik yaratilgan nom ko'rsatish */}
+              {formData.name && (
+                <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-2">
+                  <p className="text-xs font-semibold text-green-700 mb-1">
+                    {t('Saqlanadigan nom:', language)}
+                  </p>
+                  <p className="text-sm font-bold text-green-900">
+                    {formData.category === 'zapchast' ? t('Zapchast', language) : t('Boshqa', language)} {formData.name}
+                  </p>
+                </div>
               )}
             </div>
           )}
