@@ -5,9 +5,10 @@ import { t } from '@/lib/transliteration';
 interface SparePart {
   _id: string;
   name: string;
-  price: number;
+  price?: number; // Optional - backward compatibility
   costPrice?: number; // O'zini narxi
   sellingPrice?: number; // Sotish narxi
+  currency?: 'UZS' | 'USD'; // Valyuta turi
   profit?: number; // Foyda (virtual field)
   quantity: number;
   supplier: string;
@@ -107,7 +108,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
                 <span className="text-[10px] font-semibold text-orange-600">{t("O'zini", language)}</span>
               </div>
               <p className="text-sm font-bold text-orange-900">
-                {(sparePart.costPrice || sparePart.price).toLocaleString()}
+                {sparePart.currency === 'USD' ? '$' : ''}{(sparePart.costPrice || sparePart.sellingPrice || sparePart.price || 0).toLocaleString()}
               </p>
             </div>
 
@@ -117,7 +118,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
                 <span className="text-[10px] font-semibold text-green-600">{t('Sotish', language)}</span>
               </div>
               <p className="text-sm font-bold text-green-900">
-                {(sparePart.sellingPrice || sparePart.price).toLocaleString()}
+                {sparePart.currency === 'USD' ? '$' : ''}{(sparePart.sellingPrice || sparePart.price || 0).toLocaleString()}
               </p>
             </div>
 
@@ -127,7 +128,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
                 <span className="text-[10px] font-semibold text-emerald-600">{t('Foyda', language)}</span>
               </div>
               <p className="text-sm font-bold text-emerald-900">
-                {(sparePart.profit || ((sparePart.sellingPrice || sparePart.price) - (sparePart.costPrice || sparePart.price))).toLocaleString()}
+                {sparePart.currency === 'USD' ? '$' : ''}{(sparePart.profit || ((sparePart.sellingPrice || sparePart.price || 0) - (sparePart.costPrice || sparePart.sellingPrice || sparePart.price || 0))).toLocaleString()}
               </p>
             </div>
           </div>
@@ -137,7 +138,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-indigo-600">{t('Jami qiymat', language)}</span>
               <span className="text-sm font-bold text-indigo-900">
-                {((sparePart.sellingPrice || sparePart.price) * sparePart.quantity).toLocaleString()} {t("so'm", language)}
+                {sparePart.currency === 'USD' ? '$' : ''}{((sparePart.sellingPrice || sparePart.price || 0) * sparePart.quantity).toLocaleString()} {sparePart.currency === 'UZS' ? t("so'm", language) : ''}
               </span>
             </div>
           </div>
@@ -147,7 +148,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-emerald-600">{t('Jami foyda', language)}</span>
               <span className="text-sm font-bold text-emerald-900">
-                {((sparePart.profit || ((sparePart.sellingPrice || sparePart.price) - (sparePart.costPrice || sparePart.price))) * sparePart.quantity).toLocaleString()} {t("so'm", language)}
+                {sparePart.currency === 'USD' ? '$' : ''}{((sparePart.profit || ((sparePart.sellingPrice || sparePart.price || 0) - (sparePart.costPrice || sparePart.sellingPrice || sparePart.price || 0))) * sparePart.quantity).toLocaleString()} {sparePart.currency === 'UZS' ? t("so'm", language) : ''}
               </span>
             </div>
           </div>
@@ -170,6 +171,48 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
               <p className="text-[10px] text-orange-800">{formatDate(sparePart.updatedAt)}</p>
             </div>
           </div>
+
+          {/* Balon ma'lumotlari */}
+          {/* @ts-ignore */}
+          {sparePart.category === 'balon' && (
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border-2 border-blue-200">
+              <h3 className="text-xs font-bold text-blue-900 mb-2 flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                {t('Balon ma\'lumotlari', language)}
+              </h3>
+              <div className="space-y-2">
+                {/* @ts-ignore */}
+                {sparePart.tireSize && (
+                  <div className="flex items-center justify-between bg-white/60 rounded-lg p-2">
+                    <span className="text-xs text-gray-600">{t('O\'lchami', language)}:</span>
+                    {/* @ts-ignore */}
+                    <span className="text-sm font-bold text-blue-900">{sparePart.tireSize}</span>
+                  </div>
+                )}
+                {/* @ts-ignore */}
+                {sparePart.tireBrand && (
+                  <div className="flex items-center justify-between bg-white/60 rounded-lg p-2">
+                    <span className="text-xs text-gray-600">{t('Brend', language)}:</span>
+                    {/* @ts-ignore */}
+                    <span className="text-sm font-bold text-blue-900">{sparePart.tireBrand}</span>
+                  </div>
+                )}
+                {/* @ts-ignore */}
+                {sparePart.tireType && (
+                  <div className="flex items-center justify-between bg-white/60 rounded-lg p-2">
+                    <span className="text-xs text-gray-600">{t('Turi', language)}:</span>
+                    <span className="text-sm font-bold text-blue-900">
+                      {/* @ts-ignore */}
+                      {sparePart.tireType === 'yozgi' ? t('Yozgi', language) : 
+                       /* @ts-ignore */
+                       sparePart.tireType === 'qishki' ? t('Qishki', language) : 
+                       t('Universal', language)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Status */}
           <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-2 border border-gray-200">

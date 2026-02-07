@@ -1,12 +1,35 @@
-import React, { useState } from 'react';
-import { useDebts } from '@/hooks/useDebts';
-import { useDebtSummary } from '@/hooks/useDebts';
+import React, { useState, useMemo } from 'react';
+import { useDebtsNew } from '@/hooks/useDebtsNew';
 import EditDebtModal from '@/components/EditDebtModal';
 import DeleteDebtModal from '@/components/DeleteDebtModal';
 import { DollarSign, TrendingUp, TrendingDown, Calendar, Phone, Eye, Edit, Trash2, X, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { Debt } from '@/types';
 import { t } from '@/lib/transliteration';
+
+// Local Debt type from hook
+type Debt = {
+  _id: string;
+  creditorName: string;
+  creditorPhone?: string;
+  amount: number;
+  paidAmount: number;
+  type: 'receivable' | 'payable';
+  status: 'pending' | 'partial' | 'paid';
+  dueDate?: string;
+  description?: string;
+  paymentHistory?: Array<{
+    amount: number;
+    date: string;
+    notes?: string;
+  }>;
+  createdBy?: {
+    _id: string;
+    name: string;
+    username: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
 
 const Debts: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState('');
@@ -21,49 +44,23 @@ const Debts: React.FC = () => {
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   }, []);
 
-  // Hook - avtomatik online/offline rejimni boshqaradi
-  const { data: debtsData, isLoading } = useDebts({ 
-    type: typeFilter, 
-    status: statusFilter 
-  });
-  const allDebts = debtsData?.debts || [];
-  const { data: debtSummary, isLoading: summaryLoading } = useDebtSummary();
+  // ⚡ ULTRA FAST: Yangi optimallashtirilgan hook
+  const { 
+    debts: allDebts, 
+    summary: debtSummary, 
+    loading: isLoading, 
+    summaryLoading,
+    updateDebt,
+    deleteDebt 
+  } = useDebtsNew({ type: typeFilter, status: statusFilter });
 
   // Faqat to'lanmagan va qisman to'langan qarzlarni ko'rsatish
-  const debts = allDebts.filter((debt: Debt) => debt.status !== 'paid');
+  const debts = useMemo(() => 
+    allDebts.filter((debt: Debt) => debt.status !== 'paid'),
+    [allDebts]
+  );
 
-  // const getStatusConfig = (status: string) => {
-  //   switch (status) {
-  //     case 'pending': 
-  //       return { 
-  //         bg: 'bg-gradient-to-r from-amber-50 to-yellow-50', 
-  //         text: 'text-amber-700',
-  //         border: 'border-amber-200',
-  //         dot: 'bg-amber-500'
-  //       };
-  //     case 'partial': 
-  //       return { 
-  //         bg: 'bg-gradient-to-r from-blue-50 to-cyan-50', 
-  //         text: 'text-blue-700',
-  //         border: 'border-blue-200',
-  //         dot: 'bg-blue-500'
-  //       };
-  //     case 'paid': 
-  //       return { 
-  //         bg: 'bg-gradient-to-r from-blue-50 to-cyan-50', 
-  //         text: 'text-blue-700',
-  //         border: 'border-blue-200',
-  //         dot: 'bg-blue-500'
-  //       };
-  //     default: 
-  //       return { 
-  //         bg: 'bg-gray-50', 
-  //         text: 'text-gray-700',
-  //         border: 'border-gray-200',
-  //         dot: 'bg-gray-500'
-  //       };
-  //   }
-  // };
+
 
   const getTypeText = (type: string) => {
     return type === 'receivable' ? t('Bizga qarzi bor', language) : t('Bizning qarzimiz', language);
@@ -240,7 +237,7 @@ const Debts: React.FC = () => {
                             </div>
                           </div>
                           <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
-                            #{debt.paymentHistory.length - index}
+                            #{(debt.paymentHistory?.length || 0) - index}
                           </span>
                         </div>
                       </div>
@@ -599,7 +596,8 @@ const Debts: React.FC = () => {
               setIsEditModalOpen(false);
               setSelectedDebt(null);
             }}
-            debt={selectedDebt}
+            debt={selectedDebt as any}
+            onUpdate={updateDebt}
           />
           <DeleteDebtModal
             isOpen={isDeleteModalOpen}
@@ -607,7 +605,8 @@ const Debts: React.FC = () => {
               setIsDeleteModalOpen(false);
               setSelectedDebt(null);
             }}
-            debt={selectedDebt}
+            debt={selectedDebt as any}
+            onDelete={deleteDebt}
           />
         </>
       )}

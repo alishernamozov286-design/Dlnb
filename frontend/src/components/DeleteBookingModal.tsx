@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, AlertTriangle } from 'lucide-react';
-import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { t } from '@/lib/transliteration';
 
@@ -15,34 +13,31 @@ interface DeleteBookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   booking: Booking;
+  onDelete: (id: string) => Promise<any>;
 }
 
-const DeleteBookingModal: React.FC<DeleteBookingModalProps> = ({ isOpen, onClose, booking }) => {
+const DeleteBookingModal: React.FC<DeleteBookingModalProps> = ({ isOpen, onClose, booking, onDelete }) => {
   const [language] = useState<'latin' | 'cyrillic'>(() => {
     const savedLanguage = localStorage.getItem('language');
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   });
 
-  const queryClient = useQueryClient();
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      const response = await api.delete(`/bookings/${booking._id}`);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['booking-stats'] });
-      toast.success(t('Bron muvaffaqiyatli o\'chirildi', language));
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    
+    try {
+      // ⚡ INSTANT: Modal darhol yopiladi
       onClose();
-    },
-    onError: (error: any) => {
+      
+      // Background'da o'chirish
+      await onDelete(booking._id);
+    } catch (error: any) {
       toast.error(error.response?.data?.message || t('Xatolik yuz berdi', language));
-    },
-  });
-
-  const handleDelete = () => {
-    deleteMutation.mutate();
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -101,10 +96,10 @@ const DeleteBookingModal: React.FC<DeleteBookingModalProps> = ({ isOpen, onClose
               </button>
               <button
                 onClick={handleDelete}
-                disabled={deleteMutation.isPending}
+                disabled={isDeleting}
                 className="flex-1 px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all font-medium disabled:opacity-50"
               >
-                {deleteMutation.isPending ? t('O\'chirilmoqda...', language) : t('O\'chirish', language)}
+                {isDeleting ? t('O\'chirilmoqda...', language) : t('O\'chirish', language)}
               </button>
             </div>
           </div>

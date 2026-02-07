@@ -39,30 +39,27 @@ router.get('/sales', authenticate, getSales);
 // Get spare part by ID
 router.get('/:id', authenticate, getSparePartById);
 
-// Create spare part (master only)
+// Create spare part (master only) - SUPPLIER VALIDATION REMOVED
 router.post('/', authenticate, authorize('master'), [
   body('name').trim().isLength({ min: 2 }).withMessage('Zapchast nomi kamida 2 ta belgidan iborat bo\'lishi kerak'),
   body('price').isFloat({ min: 0 }).withMessage('Narx 0 dan katta bo\'lishi kerak'),
-  body('quantity').isInt({ min: 0 }).withMessage('Miqdor 0 dan kichik bo\'lmasligi kerak'),
-  body('supplier').trim().isLength({ min: 2 }).withMessage('Kimdan olingani kamida 2 ta belgidan iborat bo\'lishi kerak')
+  body('quantity').isInt({ min: 0 }).withMessage('Miqdor 0 dan kichik bo\'lmasligi kerak')
 ], handleValidationErrors, createSparePart);
 
-// Create spare part with expense (master only - from Cashier page)
+// Create spare part with expense (master only - from Cashier page) - SUPPLIER VALIDATION REMOVED
 router.post('/with-expense', authenticate, authorize('master'), [
   body('name').trim().isLength({ min: 2 }).withMessage('Zapchast nomi kamida 2 ta belgidan iborat bo\'lishi kerak'),
   body('costPrice').optional().isFloat({ min: 0 }).withMessage('Tannarx 0 dan katta bo\'lishi kerak'),
   body('sellingPrice').optional().isFloat({ min: 0 }).withMessage('Sotish narxi 0 dan katta bo\'lishi kerak'),
   body('quantity').isInt({ min: 0 }).withMessage('Miqdor 0 dan kichik bo\'lmasligi kerak'),
-  body('supplier').trim().isLength({ min: 2 }).withMessage('Kimdan olingani kamida 2 ta belgidan iborat bo\'lishi kerak'),
   body('paymentMethod').isIn(['cash', 'card']).withMessage('To\'lov usuli noto\'g\'ri')
 ], handleValidationErrors, createSparePartWithExpense);
 
-// Update spare part (master only)
+// Update spare part (master only) - SUPPLIER VALIDATION REMOVED
 router.put('/:id', authenticate, authorize('master'), [
   body('name').optional().trim().isLength({ min: 2 }).withMessage('Zapchast nomi kamida 2 ta belgidan iborat bo\'lishi kerak'),
   body('price').optional().isFloat({ min: 0 }).withMessage('Narx 0 dan katta bo\'lishi kerak'),
-  body('quantity').optional().isInt({ min: 0 }).withMessage('Miqdor 0 dan kichik bo\'lmasligi kerak'),
-  body('supplier').optional().trim().isLength({ min: 2 }).withMessage('Kimdan olingani kamida 2 ta belgidan iborat bo\'lishi kerak')
+  body('quantity').optional().isInt({ min: 0 }).withMessage('Miqdor 0 dan kichik bo\'lmasligi kerak')
 ], handleValidationErrors, updateSparePart);
 
 // Delete spare part (master only)

@@ -47,7 +47,6 @@ const Cars: React.FC = () => {
   // New hook - avtomatik online/offline rejimni boshqaradi
   const { 
     cars, 
-    loading: isLoading, 
     updateCar
   } = useCarsNew();
 
@@ -61,14 +60,17 @@ const Cars: React.FC = () => {
     return remaining > 0; // Faqat qarzi qolgan mashinalar
   });
   
-  // Haqiqatan ham qarzi bor mashina ID larini ajratib olish
-  const carsWithActiveDebtIds = new Set(
-    activeDebts
-      .filter((debt: any) => debt.car && debt.car._id)
-      .map((debt: any) => debt.car._id)
+  // ⚡ OPTIMIZED: Qarzi bor mashina ID larini memoize qilish
+  const carsWithActiveDebtIds = React.useMemo(() => 
+    new Set(
+      activeDebts
+        .filter((debt: any) => debt.car && debt.car._id)
+        .map((debt: any) => debt.car._id)
+    ),
+    [activeDebts]
   );
   
-  // Qidiruv va filtr
+  // ⚡ OPTIMIZED: Qidiruv va filtr - memoized
   const filteredCars = React.useMemo(() => {
     let result = cars;
     
@@ -91,34 +93,43 @@ const Cars: React.FC = () => {
     return result;
   }, [cars, searchTerm, statusFilter]);
 
-  // Mashinalarni faol va arxiv bo'yicha filtrlash
-  const activeCars = filteredCars.filter((car: Car) => {
-    // Offline holatda faqat faol mashinalarni ko'rsatish
-    if (!isOnline) {
-      return !car.isDeleted && car.status !== 'completed' && car.status !== 'delivered';
-    }
-    // Online holatda qarzli mashinalarni ham hisobga olish
-    return !car.isDeleted && 
-           car.status !== 'completed' && 
-           car.status !== 'delivered' &&
-           !carsWithActiveDebtIds.has(car._id);
-  });
+  // ⚡ OPTIMIZED: Faol mashinalar - memoized
+  const activeCars = React.useMemo(() => 
+    filteredCars.filter((car: Car) => {
+      // Offline holatda faqat faol mashinalarni ko'rsatish
+      if (!isOnline) {
+        return !car.isDeleted && car.status !== 'completed' && car.status !== 'delivered';
+      }
+      // Online holatda qarzli mashinalarni ham hisobga olish
+      return !car.isDeleted && 
+             car.status !== 'completed' && 
+             car.status !== 'delivered' &&
+             !carsWithActiveDebtIds.has(car._id);
+    }),
+    [filteredCars, isOnline, carsWithActiveDebtIds]
+  );
   
-  const archivedCars = filteredCars.filter((car: Car) => {
-    // Offline holatda arxiv bo'sh
-    if (!isOnline) {
-      return false;
-    }
-    // Online holatda to'liq arxiv
-    return car.isDeleted || 
-           car.status === 'completed' || 
-           car.status === 'delivered' ||
-           carsWithActiveDebtIds.has(car._id);
-  });
+  // ⚡ OPTIMIZED: Arxiv mashinalar - memoized
+  const archivedCars = React.useMemo(() => 
+    filteredCars.filter((car: Car) => {
+      // Offline holatda arxiv bo'sh
+      if (!isOnline) {
+        return false;
+      }
+      // Online holatda to'liq arxiv
+      return car.isDeleted || 
+             car.status === 'completed' || 
+             car.status === 'delivered' ||
+             carsWithActiveDebtIds.has(car._id);
+    }),
+    [filteredCars, isOnline, carsWithActiveDebtIds]
+  );
   
-  // Hozirgi tab bo'yicha mashinalarni ko'rsatish
-  // Offline holatda doimo faol mashinalarni ko'rsatish
-  const displayedCars = (!isOnline || activeTab === 'active') ? activeCars : archivedCars;
+  // ⚡ OPTIMIZED: Ko'rsatiladigan mashinalar - memoized
+  const displayedCars = React.useMemo(() => 
+    (!isOnline || activeTab === 'active') ? activeCars : archivedCars,
+    [isOnline, activeTab, activeCars, archivedCars]
+  );
 
   const handleViewCar = (car: Car) => {
     setSelectedCar(car);
@@ -373,15 +384,7 @@ const Cars: React.FC = () => {
         )}
 
         {/* Cars Grid */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 sm:py-20">
-            <div className="relative">
-              <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-4 border-blue-200"></div>
-              <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-4 border-t-blue-600 absolute top-0 left-0"></div>
-            </div>
-            <p className="mt-4 sm:mt-6 text-gray-600 font-medium text-sm sm:text-base">{t("Mashinalar yuklanmoqda...", language)}</p>
-          </div>
-        ) : displayedCars.length === 0 ? (
+        {displayedCars.length === 0 ? (
           <div className="bg-white rounded-lg sm:rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-16 text-center">
             <div className="max-w-md mx-auto">
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full w-16 h-16 sm:w-24 sm:h-24 flex items-center justify-center mx-auto mb-4 sm:mb-6">

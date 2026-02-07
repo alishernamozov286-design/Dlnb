@@ -10,9 +10,10 @@ interface DeleteApprenticeModalProps {
   onClose: () => void;
   apprentice: UserType | null;
   onDelete: () => void;
+  onDeleteOptimistic?: (apprenticeId: string) => Promise<boolean>;
 }
 
-const DeleteApprenticeModal: React.FC<DeleteApprenticeModalProps> = ({ isOpen, onClose, apprentice, onDelete }) => {
+const DeleteApprenticeModal: React.FC<DeleteApprenticeModalProps> = ({ isOpen, onClose, apprentice, onDelete, onDeleteOptimistic }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   // localStorage'dan tilni o'qish
@@ -27,16 +28,32 @@ const DeleteApprenticeModal: React.FC<DeleteApprenticeModalProps> = ({ isOpen, o
   const handleDelete = async () => {
     if (!apprentice) return;
 
-    setIsLoading(true);
-    try {
-      await api.delete(`/auth/users/${apprentice._id}`);
-      onDelete();
+    // Agar onDeleteOptimistic prop berilgan bo'lsa, uni ishlatish (optimistic update)
+    if (onDeleteOptimistic) {
+      // INSTANT: Darhol modal yopish va UI'dan o'chirish
       onClose();
-    } catch (error: any) {
-      console.error('Delete error:', error);
-      alert(error.response?.data?.message || t('Xatolik yuz berdi', language));
-    } finally {
-      setIsLoading(false);
+      
+      // Background'da o'chirish
+      try {
+        await onDeleteOptimistic(apprentice._id);
+        onDelete();
+      } catch (error: any) {
+        console.error('Delete error:', error);
+        // Xatolik toast orqali ko'rsatiladi (hook ichida)
+      }
+    } else {
+      // Eski usul - loading ko'rsatish
+      setIsLoading(true);
+      try {
+        await api.delete(`/auth/users/${apprentice._id}`);
+        onDelete();
+        onClose();
+      } catch (error: any) {
+        console.error('Delete error:', error);
+        alert(error.response?.data?.message || t('Xatolik yuz berdi', language));
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 

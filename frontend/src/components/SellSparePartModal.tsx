@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 interface SellSparePartModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (updatedPart?: any) => void; // Yangilangan tovarni qaytarish
   sparePart: any;
 }
 
@@ -89,7 +89,7 @@ const SellSparePartModal: React.FC<SellSparePartModalProps> = ({
       });
 
       toast.success(t('Zapchast muvaffaqiyatli sotildi', language));
-      onSuccess();
+      onSuccess(quantity); // Sotilgan miqdorni qaytarish
       onClose();
     } catch (error: any) {
       console.error('Error selling spare part:', error);

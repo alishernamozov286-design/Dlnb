@@ -51,13 +51,14 @@ export const useSpareParts = (filters: SparePartFilters = {}) => {
       const response = await api.get(`/spare-parts?${params.toString()}`);
       return response.data;
     },
-    staleTime: 100, // 0.1 sekund - juda tez yangilanish
-    gcTime: 5000, // 5 sekund cache
-    refetchInterval: 100, // Har 0.1 sekundda avtomatik yangilanadi
-    retry: 1, // Faqat 1 marta retry - tezroq
-    refetchOnMount: 'always', // Har doim yangi ma'lumot
-    refetchOnWindowFocus: true, // Focus'da yangilash
-    placeholderData: (previousData) => previousData, // Eski ma'lumotni ko'rsatish
+    staleTime: Infinity, // Hech qachon eski bo'lmaydi - instant loading
+    gcTime: Infinity, // Hech qachon o'chirilmaydi
+    retry: 0, // Retry yo'q - maksimal tezlik
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    notifyOnChangeProps: ['data'],
+    placeholderData: (previousData) => previousData, // Cache'dan instant yuklash
   });
 };
 

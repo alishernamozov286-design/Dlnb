@@ -1,14 +1,12 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Calendar, Phone, Car, Plus, Edit2, Trash2, Clock, Gift, Cake, PartyPopper, Sparkles } from 'lucide-react';
-import api from '@/lib/api';
-import toast from 'react-hot-toast';
 import { t } from '@/lib/transliteration';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import CreateBookingModal from '../../components/CreateBookingModal';
 import EditBookingModal from '../../components/EditBookingModal';
 import DeleteBookingModal from '../../components/DeleteBookingModal';
 import BirthdaySmsModal from '../../components/BirthdaySmsModal';
+import { useBookingsNew } from '@/hooks/useBookingsNew';
 
 interface Booking {
   _id: string;
@@ -40,7 +38,10 @@ const Bookings: React.FC = () => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const queryClient = useQueryClient();
+  // ⚡ ULTRA FAST: Yangi optimallashtirilgan hook
+  const { bookings: bookingsData, loading: isLoading, createBooking, deleteBooking, updateBooking } = useBookingsNew();
+
+  const bookings = useMemo(() => bookingsData || [], [bookingsData]);
 
   // Tug'ilgan kungacha qolgan kunlarni hisoblash
   const getDaysUntilBirthday = (birthDate?: string) => {
@@ -68,87 +69,62 @@ const Bookings: React.FC = () => {
     return diffDays;
   };
 
-  // Fetch bookings
-  const { data: bookingsData, isLoading } = useQuery({
-    queryKey: ['bookings'],
-    queryFn: async () => {
-      const response = await api.get('/bookings');
-      return response.data;
-    },
-  });
-
-  const bookings = bookingsData?.bookings || [];
-
-  // Mijozlarni qidirish
-  const filteredBookings = bookings.filter((booking: Booking) => {
-    if (!searchQuery) return true;
+  // Mijozlarni qidirish - memoized
+  const filteredBookings = useMemo(() => {
+    if (!searchQuery) return bookings;
     
     const query = searchQuery.toLowerCase();
-    return (
+    return bookings.filter((booking: Booking) =>
       booking.customerName.toLowerCase().includes(query) ||
       booking.phoneNumber.toLowerCase().includes(query) ||
       booking.licensePlate.toLowerCase().includes(query)
     );
-  });
+  }, [bookings, searchQuery]);
 
-  // Bronlarni tug'ilgan kun bo'yicha saralash
-  const sortedBookings = [...filteredBookings].sort((a, b) => {
-    const daysA = getDaysUntilBirthday(a.birthDate);
-    const daysB = getDaysUntilBirthday(b.birthDate);
+  // Bronlarni tug'ilgan kun bo'yicha saralash - memoized
+  const sortedBookings = useMemo(() => {
+    return [...filteredBookings].sort((a, b) => {
+      const daysA = getDaysUntilBirthday(a.birthDate);
+      const daysB = getDaysUntilBirthday(b.birthDate);
 
-    // Tug'ilgan kuni 0-2 kun oralig'ida bo'lganlarni eng yuqoriga
-    if (daysA !== null && daysA >= 0 && daysA <= 2) {
-      if (daysB !== null && daysB >= 0 && daysB <= 2) {
-        return daysA - daysB; // Ikkalasi ham 0-2 oralig'ida bo'lsa, kamroq kunni yuqoriga
+      // Tug'ilgan kuni 0-2 kun oralig'ida bo'lganlarni eng yuqoriga
+      if (daysA !== null && daysA >= 0 && daysA <= 2) {
+        if (daysB !== null && daysB >= 0 && daysB <= 2) {
+          return daysA - daysB;
+        }
+        return -1;
       }
-      return -1; // A yuqorida
-    }
-    if (daysB !== null && daysB >= 0 && daysB <= 2) {
-      return 1; // B yuqorida
-    }
+      if (daysB !== null && daysB >= 0 && daysB <= 2) {
+        return 1;
+      }
 
-    return 0; // Qolganlarini o'zgartirmaslik
-  });
+      return 0;
+    });
+  }, [filteredBookings]);
 
-  // Update booking status
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const response = await api.put(`/bookings/${id}`, { status });
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['booking-stats'] });
-      toast.success(t('Status yangilandi', language));
-    },
-    onError: () => {
-      toast.error(t('Xatolik yuz berdi', language));
-    },
-  });
+  // Update booking status - optimistic
+  const handleStatusChange = useCallback((id: string, status: string) => {
+    updateBooking(id, { status });
+  }, [updateBooking]);
 
-  const handleSendBirthdaySms = (booking: Booking) => {
+  const handleSendBirthdaySms = useCallback((booking: Booking) => {
     if (!booking.phoneNumber) {
-      toast.error(t('Telefon raqam mavjud emas', language));
       return;
     }
     
     setSelectedBooking(booking);
     setIsBirthdaySmsModalOpen(true);
-  };
+  }, []);
 
-  const handleEdit = (booking: Booking) => {
+  const handleEdit = useCallback((booking: Booking) => {
     setSelectedBooking(booking);
     setIsEditModalOpen(true);
-  };
+  }, []);
 
-  const handleDelete = (booking: Booking) => {
+  const handleDelete = useCallback((booking: Booking) => {
     setSelectedBooking(booking);
     setIsDeleteModalOpen(true);
-  };
-
-  const handleStatusChange = (id: string, status: string) => {
-    updateStatusMutation.mutate({ id, status });
-  };
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -433,6 +409,7 @@ const Bookings: React.FC = () => {
         <CreateBookingModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
+          onCreate={createBooking}
         />
       )}
 
@@ -444,6 +421,7 @@ const Bookings: React.FC = () => {
             setSelectedBooking(null);
           }}
           booking={selectedBooking}
+          onUpdate={updateBooking}
         />
       )}
 
@@ -455,6 +433,7 @@ const Bookings: React.FC = () => {
             setSelectedBooking(null);
           }}
           booking={selectedBooking}
+          onDelete={deleteBooking}
         />
       )}
 

@@ -14,8 +14,23 @@ import { Car } from '@/lib/types/base';
 import toast from 'react-hot-toast';
 
 export function useCarsNew() {
-  const [cars, setCars] = useState<Car[]>([]);
-  const [loading, setLoading] = useState(true);
+  // ⚡ INSTANT LOADING: Initial state'ni localStorage'dan olish (0ms)
+  const [cars, setCars] = useState<Car[]>(() => {
+    try {
+      const cached = localStorage.getItem('cars_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Cache 24 soat amal qiladi
+        if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+          return parsed.data || [];
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load cars from localStorage:', err);
+    }
+    return [];
+  });
+  const [loading] = useState(false); // Always false - instant loading
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -25,42 +40,54 @@ export function useCarsNew() {
   const queueManager = QueueManager.getInstance();
   const syncManager = SyncManager.getInstance();
 
-  // Load cars - OPTIMIZED (silent parameter for background refresh)
+  // Load cars - ULTRA OPTIMIZED (instant loading, no spinner)
   const loadCars = useCallback(async (silent = false) => {
     try {
-      if (!silent) {
-        setLoading(true);
-      }
+      // NEVER show loading - instant UI
       setError(null);
       
-      // INSTANT OFFLINE DETECTION: Check if offline first
+      // INSTANT: Load from cache immediately (0ms)
       const networkStatus = networkManager.getStatus();
       
-      if (!networkStatus.isOnline) {
-        // FAST PATH: Load from IndexedDB immediately (50-100ms)
-        const data = await carsRepository.getAll();
-        setCars(data);
-        
-        if (!silent) {
-          setLoading(false);
-        }
-        return;
+      // FAST PATH: Always load from IndexedDB first (instant)
+      const data = await carsRepository.getAll();
+      setCars(data);
+      
+      // ⚡ INSTANT: Save to localStorage for next page load (0ms)
+      try {
+        localStorage.setItem('cars_cache', JSON.stringify({
+          data,
+          timestamp: Date.now()
+        }));
+      } catch (err) {
+        console.error('Failed to cache cars to localStorage:', err);
       }
       
-      // ONLINE PATH: Normal load with parallel operations
-      const [data] = await Promise.all([
-        carsRepository.getAll()
-      ]);
-      
-      setCars(data);
+      // Background sync if online (user won't see this)
+      if (networkStatus.isOnline && !silent) {
+        // Fire and forget - update in background
+        carsRepository.getAll().then(freshData => {
+          // Only update if data changed
+          if (JSON.stringify(freshData) !== JSON.stringify(data)) {
+            setCars(freshData);
+            // Update localStorage cache
+            try {
+              localStorage.setItem('cars_cache', JSON.stringify({
+                data: freshData,
+                timestamp: Date.now()
+              }));
+            } catch (err) {
+              console.error('Failed to update cars cache:', err);
+            }
+          }
+        }).catch(err => {
+          console.error('Background refresh failed:', err);
+        });
+      }
     } catch (err: any) {
       console.error('Failed to load cars:', err);
       setError(err.message);
       setCars([]);
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
     }
   }, [networkManager]);
 

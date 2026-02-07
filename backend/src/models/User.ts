@@ -68,7 +68,8 @@ const userSchema = new Schema<IUser>({
   role: {
     type: String,
     enum: ['master', 'apprentice'],
-    required: true
+    required: true,
+    index: true // Tez qidirish uchun indeks
   },
   earnings: {
     type: Number,

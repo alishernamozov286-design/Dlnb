@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import { t } from '@/lib/transliteration';
-import { useQueryClient } from '@tanstack/react-query';
 
 interface SparePart {
   _id: string;
@@ -23,37 +22,25 @@ interface DeleteSparePartModalProps {
 }
 
 const DeleteSparePartModal: React.FC<DeleteSparePartModalProps> = ({ isOpen, onClose, sparePart, onSuccess }) => {
-  const queryClient = useQueryClient();
   const language = (localStorage.getItem('language') as 'latin' | 'cyrillic') || 'latin';
-  const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleDelete = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/spare-parts/${sparePart._id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        // Ma'lumotlarni yangilash
-        queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
-        queryClient.invalidateQueries({ queryKey: ['spare-parts-search'] });
-        queryClient.invalidateQueries({ queryKey: ['spare-parts-infinite'] });
-        
-        onSuccess();
-        onClose();
+  const handleDelete = () => {
+    // 1. DARHOL UI'ni yangilash (optimistic update) - 0.1 sekund ichida
+    onSuccess();
+    onClose();
+    
+    // 2. Background'da API so'rovini yuborish
+    const token = localStorage.getItem('token');
+    fetch(`${import.meta.env.VITE_API_URL}/spare-parts/${sparePart._id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`
       }
-    } catch (error) {
+    }).catch(error => {
       console.error('Error deleting spare part:', error);
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   return (
@@ -79,7 +66,7 @@ const DeleteSparePartModal: React.FC<DeleteSparePartModalProps> = ({ isOpen, onC
                   {t('Ushbu zapchastni o\'chirmoqchimisiz?', language)}
                 </p>
                 <p className="text-lg font-semibold text-gray-900 mt-1">{sparePart.name}</p>
-                <p className="text-xs text-gray-500">{sparePart.supplier}</p>
+                {sparePart.supplier && <p className="text-xs text-gray-500">{sparePart.supplier}</p>}
               </div>
             </div>
 
@@ -93,17 +80,15 @@ const DeleteSparePartModal: React.FC<DeleteSparePartModalProps> = ({ isOpen, onC
           <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
             <button
               onClick={onClose}
-              disabled={loading}
               className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               {t('Bekor qilish', language)}
             </button>
             <button
               onClick={handleDelete}
-              disabled={loading}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
-              {loading ? t('O\'chirilmoqda...', language) : t('O\'chirish', language)}
+              {t('O\'chirish', language)}
             </button>
           </div>
         </div>

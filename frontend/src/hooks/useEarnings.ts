@@ -17,5 +17,12 @@ export const useEarnings = (filters?: {
       const response = await api.get(`/stats/earnings?${params.toString()}`);
       return response.data;
     },
+    staleTime: Infinity, // Infinite cache - maksimal tezlik
+    gcTime: Infinity, // Infinite cache
+    retry: 0, // No retry - instant loading
+    refetchOnMount: false, // Mount bo'lganda yangilanmasin
+    refetchOnWindowFocus: false, // Focus'da yangilanmasin
+    refetchOnReconnect: false, // Reconnect'da yangilanmasin
+    placeholderData: (previousData) => previousData, // Instant loading from cache
   });
 };

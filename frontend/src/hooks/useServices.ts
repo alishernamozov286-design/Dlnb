@@ -20,18 +20,20 @@ export interface Service {
 
 export const useServices = () => {
   const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
   const networkManager = NetworkManager.getInstance();
 
   const loadServices = useCallback(async () => {
     try {
-      setLoading(true);
       const networkStatus = networkManager.getStatus();
       setIsOnline(networkStatus.isOnline);
 
+      // Instant loading - IndexedDB dan darhol yuklash
+      const offlineServices = await servicesRepository.getAll();
+      setServices(offlineServices as any);
+
       if (networkStatus.isOnline) {
-        // Online: API dan olish va saqlash
+        // Background'da API dan yangilash
         try {
           const response = await api.get('/services');
           const fetchedServices: Service[] = response.data.services || [];
@@ -44,20 +46,11 @@ export const useServices = () => {
           setServices(fetchedServices);
         } catch (error) {
           console.error('Online xizmatlarni yuklashda xatolik:', error);
-          // Xatolik bo'lsa, offline dan yuklash
-          const offlineServices = await servicesRepository.getAll();
-          setServices(offlineServices as any);
         }
-      } else {
-        // Offline: IndexedDB dan olish
-        const offlineServices = await servicesRepository.getAll();
-        setServices(offlineServices as any);
       }
     } catch (error) {
       console.error('Xizmatlarni yuklashda xatolik:', error);
       setServices([]);
-    } finally {
-      setLoading(false);
     }
   }, [networkManager]);
 
@@ -77,7 +70,7 @@ export const useServices = () => {
 
   return {
     data: { services },
-    isLoading: loading,
+    isLoading: false, // Always false - instant loading
     isOnline,
     refetch: loadServices
   };

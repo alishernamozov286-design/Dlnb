@@ -10,8 +10,7 @@ import {
   Box,
   ArrowLeft,
   DollarSign,
-  TrendingUp,
-  RefreshCw
+  TrendingUp
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { t } from '@/lib/transliteration';
@@ -46,23 +45,25 @@ const MasterWarehouse: React.FC = memo(() => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearch = useDebounce(searchQuery, 150); // 150ms debounce
+  const debouncedSearch = useDebounce(searchQuery, 50); // 50ms debounce - maksimal tezlik
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isSellModalOpen, setIsSellModalOpen] = useState(false);
+  const [isSellModalOpen, setIsSellModalOpen] = useState(false)
   const [selectedPart, setSelectedPart] = useState<any>(null);
   const [salesStats, setSalesStats] = useState<any>(null);
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingStats, setIsLoadingStats] = useState(true); // true bilan boshlaymiz - bir vaqtda yuklanish uchun
 
   const language = useMemo<'latin' | 'cyrillic'>(() => {
     const savedLanguage = localStorage.getItem('language');
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   }, []);
 
-  const { data: sparePartsData, isLoading, refetch, isFetching } = useSpareParts();
+  const { data: sparePartsData, isLoading } = useSpareParts();
+
+  // Umumiy loading holati - barcha statistikalar bir vaqtda
+  const isAllStatsLoading = (isLoading && !sparePartsData) || isLoadingStats;
 
   const spareParts = useMemo(() => sparePartsData?.spareParts || [], [sparePartsData]);
 
@@ -124,45 +125,26 @@ const MasterWarehouse: React.FC = memo(() => {
   const getStockColor = useCallback((quantity: number) => {
     if (quantity < 3) {
       return {
-        card: 'border-red-300 bg-gradient-to-br from-red-50 to-pink-50 hover:border-red-400',
+        card: 'border-red-500 bg-gradient-to-br from-red-100 to-pink-100 hover:border-red-600',
         badge: 'bg-gradient-to-br from-red-500 to-pink-600'
       };
     } else if (quantity >= 3 && quantity < 10) {
       return {
-        card: 'border-yellow-300 bg-gradient-to-br from-yellow-50 to-amber-50 hover:border-yellow-400',
+        card: 'border-yellow-500 bg-gradient-to-br from-yellow-100 to-amber-100 hover:border-yellow-600',
         badge: 'bg-gradient-to-br from-yellow-500 to-amber-600'
       };
     } else if (quantity >= 10 && quantity < 15) {
       return {
-        card: 'border-blue-300 bg-gradient-to-br from-blue-50 to-cyan-50 hover:border-blue-400',
+        card: 'border-blue-500 bg-gradient-to-br from-blue-100 to-cyan-100 hover:border-blue-600',
         badge: 'bg-gradient-to-br from-blue-500 to-cyan-600'
       };
     } else {
       return {
-        card: 'border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 hover:border-green-400',
+        card: 'border-green-500 bg-gradient-to-br from-green-100 to-emerald-100 hover:border-green-600',
         badge: 'bg-gradient-to-br from-green-500 to-emerald-600'
       };
     }
   }, []);
-
-  const handleSellSuccess = useCallback(() => {
-    setIsSellModalOpen(false);
-    setSelectedPart(null);
-    // Instant refresh - ma'lumotlarni darhol yangilash
-    queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
-    refetch();
-    fetchSalesStats();
-  }, [refetch, queryClient]);
-
-  // Manual refresh funksiyasi
-  const handleManualRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    await Promise.all([
-      refetch(),
-      fetchSalesStats()
-    ]);
-    setTimeout(() => setIsRefreshing(false), 300);
-  }, [refetch]);
 
   const fetchSalesStats = useCallback(async () => {
     setIsLoadingStats(true);
@@ -175,6 +157,28 @@ const MasterWarehouse: React.FC = memo(() => {
       setIsLoadingStats(false);
     }
   }, []);
+
+  const handleSellSuccess = useCallback((soldQuantity: number) => {
+    setIsSellModalOpen(false);
+    // Optimistic update - darhol sotilgan miqdorni kamaytirish
+    if (selectedPart) {
+      queryClient.setQueryData(['spare-parts', {}], (oldData: any) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          spareParts: oldData.spareParts.map((part: any) => 
+            part._id === selectedPart._id 
+              ? { ...part, quantity: part.quantity - soldQuantity }
+              : part
+          )
+        };
+      });
+    }
+    setSelectedPart(null);
+    // Background'da yangilash
+    queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
+    fetchSalesStats();
+  }, [selectedPart, queryClient, fetchSalesStats]);
 
   useEffect(() => {
     fetchSalesStats();
@@ -222,76 +226,101 @@ const MasterWarehouse: React.FC = memo(() => {
                 <Plus className="h-5 w-5 relative z-10" />
                 <span className="relative z-10">{t('Tovar qo\'shish', language)}</span>
               </button>
-              
-              {/* Refresh Button */}
-              <button
-                onClick={handleManualRefresh}
-                disabled={isRefreshing || isFetching}
-                className="group relative overflow-hidden px-4 py-3 bg-white hover:bg-gray-50 text-gray-700 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2 border-2 border-gray-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className={`h-5 w-5 ${isRefreshing || isFetching ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{t('Yangilash', language)}</span>
-              </button>
             </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 mb-5">
-              <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200 hover:shadow-lg transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="p-2 bg-purple-500 rounded-lg">
-                    <Box className="h-5 w-5 text-white" />
-                  </div>
-                  <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
-                    {t('Jami', language)}
-                  </span>
-                </div>
-                <div className="text-2xl font-bold text-purple-900">
-                  {isLoading && !sparePartsData ? (
+              {isAllStatsLoading ? (
+                // Loading state - barcha kartalar bir vaqtda
+                <>
+                  <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2 bg-purple-500 rounded-lg">
+                        <Box className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
+                        {t('Jami', language)}
+                      </span>
+                    </div>
                     <div className="h-8 w-16 bg-purple-200 animate-pulse rounded"></div>
-                  ) : (
-                    spareParts?.length || 0
-                  )}
-                </div>
-                <p className="text-xs text-purple-600 mt-1">{t('Tovar turlari', language)}</p>
-              </div>
-
-              <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200 hover:shadow-lg transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="p-2 bg-blue-500 rounded-lg">
-                    <Package className="h-5 w-5 text-white" />
+                    <p className="text-xs text-purple-600 mt-1">{t('Tovar turlari', language)}</p>
                   </div>
-                  <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
-                    {t('Qiymat', language)}
-                  </span>
-                </div>
-                <div className="text-2xl font-bold text-blue-900">
-                  {isLoading && !sparePartsData ? (
+
+                  <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2 bg-blue-500 rounded-lg">
+                        <Package className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
+                        {t('Qiymat', language)}
+                      </span>
+                    </div>
                     <div className="h-8 w-24 bg-blue-200 animate-pulse rounded"></div>
-                  ) : (
-                    formatCurrency(statistics.totalValue)
-                  )}
-                </div>
-                <p className="text-xs text-blue-600 mt-1">{t('Umumiy qiymat', language)}</p>
-              </div>
-
-              <div className="relative overflow-hidden bg-gradient-to-br from-red-50 to-pink-50 rounded-xl p-4 border border-red-200 hover:shadow-lg transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="p-2 bg-red-500 rounded-lg">
-                    <AlertCircle className="h-5 w-5 text-white" />
+                    <p className="text-xs text-blue-600 mt-1">{t('Umumiy qiymat', language)}</p>
                   </div>
-                  <span className="text-xs font-semibold text-red-700 bg-red-100 px-2 py-1 rounded-full">
-                    {t('Ogohlantirish', language)}
-                  </span>
-                </div>
-                <div className="text-2xl font-bold text-red-900">
-                  {isLoading && !sparePartsData ? (
+
+                  <div className="relative overflow-hidden bg-gradient-to-br from-red-50 to-pink-50 rounded-xl p-4 border border-red-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2 bg-red-500 rounded-lg">
+                        <AlertCircle className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-xs font-semibold text-red-700 bg-red-100 px-2 py-1 rounded-full">
+                        {t('Ogohlantirish', language)}
+                      </span>
+                    </div>
                     <div className="h-8 w-12 bg-red-200 animate-pulse rounded"></div>
-                  ) : (
-                    lowStockParts.length
-                  )}
-                </div>
-                <p className="text-xs text-red-600 mt-1">{t('Kam qolgan', language)}</p>
-              </div>
+                    <p className="text-xs text-red-600 mt-1">{t('Kam qolgan', language)}</p>
+                  </div>
+                </>
+              ) : (
+                // Data loaded - barcha kartalar bir vaqtda
+                <>
+                  <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200 hover:shadow-lg transition-all">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2 bg-purple-500 rounded-lg">
+                        <Box className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
+                        {t('Jami', language)}
+                      </span>
+                    </div>
+                    <div className="text-2xl font-bold text-purple-900">
+                      {spareParts?.length || 0}
+                    </div>
+                    <p className="text-xs text-purple-600 mt-1">{t('Tovar turlari', language)}</p>
+                  </div>
+
+                  <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200 hover:shadow-lg transition-all">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2 bg-blue-500 rounded-lg">
+                        <Package className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
+                        {t('Qiymat', language)}
+                      </span>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-900">
+                      {formatCurrency(statistics.totalValue)}
+                    </div>
+                    <p className="text-xs text-blue-600 mt-1">{t('Umumiy qiymat', language)}</p>
+                  </div>
+
+                  <div className="relative overflow-hidden bg-gradient-to-br from-red-50 to-pink-50 rounded-xl p-4 border border-red-200 hover:shadow-lg transition-all">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2 bg-red-500 rounded-lg">
+                        <AlertCircle className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-xs font-semibold text-red-700 bg-red-100 px-2 py-1 rounded-full">
+                        {t('Ogohlantirish', language)}
+                      </span>
+                    </div>
+                    <div className="text-2xl font-bold text-red-900">
+                      {lowStockParts.length}
+                    </div>
+                    <p className="text-xs text-red-600 mt-1">{t('Kam qolgan', language)}</p>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Sales Statistics */}
@@ -301,69 +330,101 @@ const MasterWarehouse: React.FC = memo(() => {
                 {t('Sotuvlar statistikasi', language)}
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="p-1 bg-green-500 rounded">
-                      <Package className="h-3 w-3 text-white" />
-                    </div>
-                    <span className="text-xs font-semibold text-green-700">{t('Sotuvlar', language)}</span>
-                  </div>
-                  <div className="text-lg font-bold text-green-900">
-                    {isLoadingStats ? (
+                {isAllStatsLoading ? (
+                  // Loading state - barcha kartalar bir vaqtda
+                  <>
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="p-1 bg-green-500 rounded">
+                          <Package className="h-3 w-3 text-white" />
+                        </div>
+                        <span className="text-xs font-semibold text-green-700">{t('Sotuvlar', language)}</span>
+                      </div>
                       <div className="h-7 w-12 bg-green-200 animate-pulse rounded"></div>
-                    ) : (
-                      salesStats?.totalSales || 0
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="p-1 bg-blue-500 rounded">
-                      <Box className="h-3 w-3 text-white" />
                     </div>
-                    <span className="text-xs font-semibold text-blue-700">{t('Miqdor', language)}</span>
-                  </div>
-                  <div className="text-lg font-bold text-blue-900">
-                    {isLoadingStats ? (
+
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="p-1 bg-blue-500 rounded">
+                          <Box className="h-3 w-3 text-white" />
+                        </div>
+                        <span className="text-xs font-semibold text-blue-700">{t('Miqdor', language)}</span>
+                      </div>
                       <div className="h-7 w-12 bg-blue-200 animate-pulse rounded"></div>
-                    ) : (
-                      salesStats?.totalQuantitySold || 0
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="p-1 bg-purple-500 rounded">
-                      <DollarSign className="h-3 w-3 text-white" />
                     </div>
-                    <span className="text-xs font-semibold text-purple-700">{t('Tushum', language)}</span>
-                  </div>
-                  <div className="text-sm font-bold text-purple-900">
-                    {isLoadingStats ? (
+
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="p-1 bg-purple-500 rounded">
+                          <DollarSign className="h-3 w-3 text-white" />
+                        </div>
+                        <span className="text-xs font-semibold text-purple-700">{t('Tushum', language)}</span>
+                      </div>
                       <div className="h-6 w-20 bg-purple-200 animate-pulse rounded"></div>
-                    ) : (
-                      formatCurrency(salesStats?.totalRevenue || 0)
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-3 border border-yellow-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="p-1 bg-yellow-500 rounded">
-                      <TrendingUp className="h-3 w-3 text-white" />
                     </div>
-                    <span className="text-xs font-semibold text-yellow-700">{t('Foyda', language)}</span>
-                  </div>
-                  <div className="text-sm font-bold text-yellow-900">
-                    {isLoadingStats ? (
+                    
+                    <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-3 border border-yellow-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="p-1 bg-yellow-500 rounded">
+                          <TrendingUp className="h-3 w-3 text-white" />
+                        </div>
+                        <span className="text-xs font-semibold text-yellow-700">{t('Foyda', language)}</span>
+                      </div>
                       <div className="h-6 w-20 bg-yellow-200 animate-pulse rounded"></div>
-                    ) : (
-                      formatCurrency(salesStats?.totalProfit || 0)
-                    )}
-                  </div>
-                </div>
+                    </div>
+                  </>
+                ) : (
+                  // Data loaded - barcha kartalar bir vaqtda
+                  <>
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="p-1 bg-green-500 rounded">
+                          <Package className="h-3 w-3 text-white" />
+                        </div>
+                        <span className="text-xs font-semibold text-green-700">{t('Sotuvlar', language)}</span>
+                      </div>
+                      <div className="text-lg font-bold text-green-900">
+                        {salesStats?.totalSales || 0}
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="p-1 bg-blue-500 rounded">
+                          <Box className="h-3 w-3 text-white" />
+                        </div>
+                        <span className="text-xs font-semibold text-blue-700">{t('Miqdor', language)}</span>
+                      </div>
+                      <div className="text-lg font-bold text-blue-900">
+                        {salesStats?.totalQuantitySold || 0}
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="p-1 bg-purple-500 rounded">
+                          <DollarSign className="h-3 w-3 text-white" />
+                        </div>
+                        <span className="text-xs font-semibold text-purple-700">{t('Tushum', language)}</span>
+                      </div>
+                      <div className="text-sm font-bold text-purple-900">
+                        {formatCurrency(salesStats?.totalRevenue || 0)}
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-3 border border-yellow-200">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="p-1 bg-yellow-500 rounded">
+                          <TrendingUp className="h-3 w-3 text-white" />
+                        </div>
+                        <span className="text-xs font-semibold text-yellow-700">{t('Foyda', language)}</span>
+                      </div>
+                      <div className="text-sm font-bold text-yellow-900">
+                        {formatCurrency(salesStats?.totalProfit || 0)}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -425,7 +486,7 @@ const MasterWarehouse: React.FC = memo(() => {
                     return (
                       <div 
                         key={part._id} 
-                        className={`group relative overflow-hidden rounded-xl p-4 border-2 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] ${stockColor.card}`}
+                        className={`group relative overflow-hidden rounded-xl p-4 border-3 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] ${stockColor.card}`}
                       >
                         {/* Top Badge */}
                         <div className="flex items-center justify-between mb-3">
@@ -440,9 +501,22 @@ const MasterWarehouse: React.FC = memo(() => {
                         </div>
 
                       {/* Product Name */}
-                      <h4 className="font-bold text-base text-gray-900 mb-2 line-clamp-2 min-h-[3rem]">
-                        {part.name}
-                      </h4>
+                      <div className="mb-2">
+                        <h4 className="font-bold text-base text-gray-900 line-clamp-2 min-h-[3rem]">
+                          {part.name}
+                        </h4>
+                        {/* Kategoriya badge */}
+                        {part.category && part.category !== 'zapchast' && (
+                          <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-full ${
+                            part.category === 'balon' 
+                              ? 'bg-blue-100 text-blue-700 border border-blue-300' 
+                              : 'bg-gray-100 text-gray-700 border border-gray-300'
+                          }`}>
+                            {part.category === 'balon' ? t('Balon', language) : t('Boshqa', language)}
+                            {part.category === 'balon' && part.tireSize && ` - ${part.tireSize}`}
+                          </span>
+                        )}
+                      </div>
 
                       {/* Quantity & Price */}
                       <div className="space-y-2 mb-3">
@@ -455,7 +529,7 @@ const MasterWarehouse: React.FC = memo(() => {
                         <div className="flex items-center justify-between bg-white/60 rounded-lg p-2">
                           <span className="text-xs text-gray-600">{t('Narx', language)}</span>
                           <span className="text-sm font-bold text-purple-600">
-                            {formatCurrency(part.price)}
+                            {part.currency === 'USD' ? '$' : ''}{formatCurrency(part.sellingPrice || part.price || 0)}{part.currency === 'UZS' ? '' : ''}
                           </span>
                         </div>
                       </div>
@@ -505,12 +579,31 @@ const MasterWarehouse: React.FC = memo(() => {
       <CreateSparePartModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={() => {
+        onSuccess={(newPart) => {
           setIsCreateModalOpen(false);
-          // Instant refresh
-          queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
-          refetch();
-          fetchSalesStats();
+          // Optimistic update - darhol yangi tovarni qo'shish
+          queryClient.setQueryData(['spare-parts', {}], (oldData: any) => {
+            if (!oldData) return oldData;
+            return {
+              ...oldData,
+              spareParts: [newPart, ...oldData.spareParts],
+              pagination: {
+                ...oldData.pagination,
+                total: oldData.pagination.total + 1
+              },
+              statistics: {
+                ...oldData.statistics,
+                totalItems: (oldData.statistics?.totalItems || 0) + 1,
+                totalQuantity: (oldData.statistics?.totalQuantity || 0) + newPart.quantity,
+                totalValue: (oldData.statistics?.totalValue || 0) + (newPart.sellingPrice * newPart.quantity),
+                totalProfit: (oldData.statistics?.totalProfit || 0) + ((newPart.sellingPrice - newPart.costPrice) * newPart.quantity)
+              }
+            };
+          });
+          // Background'da statistikani yangilash (sekin, lekin muhim emas)
+          setTimeout(() => {
+            fetchSalesStats();
+          }, 500);
         }}
       />
       {selectedPart && (
@@ -521,12 +614,21 @@ const MasterWarehouse: React.FC = memo(() => {
               setIsEditModalOpen(false);
               setSelectedPart(null);
             }}
-            onSuccess={() => {
+            onSuccess={(updatedPart) => {
+              // 1. Darhol modal'ni yopish
               setIsEditModalOpen(false);
               setSelectedPart(null);
-              // Instant refresh
-              queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
-              refetch();
+              
+              // 2. Optimistic update - DARHOL yangilash
+              queryClient.setQueryData(['spare-parts', {}], (oldData: any) => {
+                if (!oldData) return oldData;
+                return {
+                  ...oldData,
+                  spareParts: oldData.spareParts.map((part: any) => 
+                    part._id === updatedPart._id ? { ...part, ...updatedPart } : part
+                  )
+                };
+              });
             }}
             sparePart={selectedPart}
           />
@@ -537,12 +639,31 @@ const MasterWarehouse: React.FC = memo(() => {
               setSelectedPart(null);
             }}
             onSuccess={() => {
+              // selectedPart'ni oldindan saqlash (null bo'lishidan oldin)
+              const deletedPartId = selectedPart?._id;
+              
               setIsDeleteModalOpen(false);
               setSelectedPart(null);
-              // Instant refresh
-              queryClient.invalidateQueries({ queryKey: ['spare-parts'] });
-              refetch();
-              fetchSalesStats();
+              
+              // Optimistic update - DARHOL o'chirilgan tovarni olib tashlash
+              if (deletedPartId) {
+                queryClient.setQueryData(['spare-parts', {}], (oldData: any) => {
+                  if (!oldData) return oldData;
+                  return {
+                    ...oldData,
+                    spareParts: oldData.spareParts.filter((part: any) => part._id !== deletedPartId),
+                    pagination: {
+                      ...oldData.pagination,
+                      total: oldData.pagination.total - 1
+                    }
+                  };
+                });
+                
+                // Background'da statistikani yangilash (sekin, lekin muhim emas)
+                setTimeout(() => {
+                  fetchSalesStats();
+                }, 500);
+              }
             }}
             sparePart={selectedPart}
           />

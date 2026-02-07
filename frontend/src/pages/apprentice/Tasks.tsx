@@ -41,26 +41,29 @@ const ApprenticeTasks: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('all');
 
-  // Shogird uchun vazifalarni filtrlash
-  const allTasks = tasks?.tasks || [];
-  const myTasks = allTasks.filter((task: any) => {
-    // Eski tizim: assignedTo
-    const assignedToId = typeof task.assignedTo === 'object' ? task.assignedTo._id : task.assignedTo;
-    if (assignedToId === user?.id) return true;
-    
-    // Yangi tizim: assignments array ichida tekshirish
-    if (task.assignments && task.assignments.length > 0) {
-      return task.assignments.some((assignment: any) => {
-        const apprenticeId = typeof assignment.apprentice === 'object' 
-          ? assignment.apprentice._id 
-          : assignment.apprentice;
-        return apprenticeId === user?.id;
-      });
-    }
-    
-    return false;
-  });
-  const getPriorityColor = (priority: string) => {
+  // ⚡ OPTIMIZED: useMemo bilan filtrlash - faqat tasks yoki user o'zgarganda qayta hisoblash
+  const myTasks = React.useMemo(() => {
+    const allTasks = tasks?.tasks || [];
+    return allTasks.filter((task: any) => {
+      // Eski tizim: assignedTo
+      const assignedToId = typeof task.assignedTo === 'object' ? task.assignedTo._id : task.assignedTo;
+      if (assignedToId === user?.id) return true;
+      
+      // Yangi tizim: assignments array ichida tekshirish
+      if (task.assignments && task.assignments.length > 0) {
+        return task.assignments.some((assignment: any) => {
+          const apprenticeId = typeof assignment.apprentice === 'object' 
+            ? assignment.apprentice._id 
+            : assignment.apprentice;
+          return apprenticeId === user?.id;
+        });
+      }
+      
+      return false;
+    });
+  }, [tasks?.tasks, user?.id]);
+  // ⚡ OPTIMIZED: useCallback bilan funksiyalar - qayta yaratilmaslik uchun
+  const getPriorityColor = React.useCallback((priority: string) => {
     switch (priority) {
       case 'urgent': return 'bg-red-100 text-red-800';
       case 'high': return 'bg-orange-100 text-orange-800';
@@ -68,8 +71,9 @@ const ApprenticeTasks: React.FC = () => {
       case 'low': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
-  };
-  const getStatusColor = (status: string) => {
+  }, []);
+  
+  const getStatusColor = React.useCallback((status: string) => {
     switch (status) {
       case 'assigned': return 'bg-blue-100 text-blue-800';
       case 'in-progress': return 'bg-yellow-100 text-yellow-800';
@@ -78,8 +82,8 @@ const ApprenticeTasks: React.FC = () => {
       case 'rejected': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
-  };
-  const handleStartTask = async (taskId: string) => {
+  }, []);
+  const handleStartTask = React.useCallback(async (taskId: string) => {
     setProcessingTaskId(taskId);
     try {
       await updateTaskStatus.mutateAsync({
@@ -89,9 +93,9 @@ const ApprenticeTasks: React.FC = () => {
     } finally {
       setProcessingTaskId(null);
     }
-  };
+  }, [updateTaskStatus]);
 
-  const handleCompleteTask = async (taskId: string) => {
+  const handleCompleteTask = React.useCallback(async (taskId: string) => {
     setProcessingTaskId(taskId);
     try {
       await updateTaskStatus.mutateAsync({
@@ -101,9 +105,9 @@ const ApprenticeTasks: React.FC = () => {
     } finally {
       setProcessingTaskId(null);
     }
-  };
+  }, [updateTaskStatus]);
 
-  const handleRestartTask = async (taskId: string) => {
+  const handleRestartTask = React.useCallback(async (taskId: string) => {
     if (!confirm(t('Vazifani qayta boshlaysizmi?', language))) {
       return;
     }
@@ -114,7 +118,7 @@ const ApprenticeTasks: React.FC = () => {
     } finally {
       setProcessingTaskId(null);
     }
-  };
+  }, [restartTaskMutation, language]);
 
   if (isLoading) {
     return (
@@ -145,37 +149,47 @@ const ApprenticeTasks: React.FC = () => {
     );
   }
 
-  const assignedTasks = myTasks.filter((task: any) => task.status === 'assigned');
-  const inProgressTasks = myTasks.filter((task: any) => task.status === 'in-progress');
-  const completedTasks = myTasks.filter((task: any) => task.status === 'completed');
-  const approvedTasks = myTasks.filter((task: any) => task.status === 'approved');
-  const rejectedTasks = myTasks.filter((task: any) => task.status === 'rejected');
+  // ⚡ OPTIMIZED: useMemo bilan statistika - faqat myTasks o'zgarganda qayta hisoblash
+  const taskStats = React.useMemo(() => ({
+    assigned: myTasks.filter((task: any) => task.status === 'assigned'),
+    inProgress: myTasks.filter((task: any) => task.status === 'in-progress'),
+    completed: myTasks.filter((task: any) => task.status === 'completed'),
+    approved: myTasks.filter((task: any) => task.status === 'approved'),
+    rejected: myTasks.filter((task: any) => task.status === 'rejected'),
+  }), [myTasks]);
 
-  // Filter tasks based on active tab
-  let filteredTasks = myTasks;
-  if (activeTab === 'active') {
-    // Faqat faol vazifalar (tasdiqlangan va rad etilganlarni QOLDIRISH, faqat tasdiqlangan o'chadi)
-    filteredTasks = myTasks.filter((task: any) => 
-      task.status !== 'approved' // Faqat tasdiqlangan vazifalar yashirin
-    );
-  } else if (activeTab === 'completed') {
-    filteredTasks = [...completedTasks, ...approvedTasks];
-  }
+  const { assigned: assignedTasks, inProgress: inProgressTasks, completed: completedTasks, approved: approvedTasks, rejected: rejectedTasks } = taskStats;
 
-  // Apply search filter
-  if (searchQuery) {
-    filteredTasks = filteredTasks.filter((task: any) => 
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (task.car?.make?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (task.car?.carModel?.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  }
+  // ⚡ OPTIMIZED: useMemo bilan filtrlangan vazifalar - faqat kerakli o'zgaruvchilar o'zgarganda qayta hisoblash
+  const filteredTasks = React.useMemo(() => {
+    // Filter tasks based on active tab
+    let result = myTasks;
+    if (activeTab === 'active') {
+      // Faqat faol vazifalar (tasdiqlangan va rad etilganlarni QOLDIRISH, faqat tasdiqlangan o'chadi)
+      result = myTasks.filter((task: any) => 
+        task.status !== 'approved' // Faqat tasdiqlangan vazifalar yashirin
+      );
+    } else if (activeTab === 'completed') {
+      result = [...completedTasks, ...approvedTasks];
+    }
 
-  // Apply priority filter
-  if (filterPriority !== 'all') {
-    filteredTasks = filteredTasks.filter((task: any) => task.priority === filterPriority);
-  }
+    // Apply search filter
+    if (searchQuery) {
+      result = result.filter((task: any) => 
+        task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (task.car?.make?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (task.car?.carModel?.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+    }
+
+    // Apply priority filter
+    if (filterPriority !== 'all') {
+      result = result.filter((task: any) => task.priority === filterPriority);
+    }
+
+    return result;
+  }, [myTasks, activeTab, searchQuery, filterPriority, completedTasks, approvedTasks]);
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-8">

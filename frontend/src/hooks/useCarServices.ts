@@ -12,7 +12,15 @@ export const useCarServices = (filters?: { carId?: string; status?: string }) =>
       
       const response = await api.get(`/car-services?${params.toString()}`);
       return response.data;
-    }
+    },
+    staleTime: Infinity, // Hech qachon eski bo'lmaydi - instant loading
+    gcTime: Infinity, // Hech qachon o'chirilmaydi
+    retry: 0, // Qayta urinmaslik
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    notifyOnChangeProps: ['data'], // Faqat data o'zgarganda
+    placeholderData: (previousData) => previousData, // Cache'dan instant yuklash
   });
 };
 

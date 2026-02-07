@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import { connectDatabase } from './config/database';
 import { setupSecurity } from './middleware/security';
@@ -82,6 +83,18 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors(corsOptions));
+
+// Compression middleware - JSON response'larni siqish (gzip)
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6 // Compression level (0-9, 6 optimal)
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

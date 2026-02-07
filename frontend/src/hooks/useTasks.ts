@@ -7,6 +7,24 @@ export const useTasks = (filters?: { status?: string; assignedTo?: string; car?:
   // Agar car filter'i temp ID bo'lsa, so'rov yubormaslik
   const shouldFetch = !filters?.car || !filters.car.startsWith('temp_');
   
+  // ⚡ INSTANT: localStorage'dan darhol yuklash
+  const getCachedData = () => {
+    try {
+      const cacheKey = `tasks_cache_${JSON.stringify(filters || {})}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Cache 10 daqiqa amal qiladi
+        if (Date.now() - parsed.timestamp < 10 * 60 * 1000) {
+          return parsed.data;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load tasks from cache:', err);
+    }
+    return undefined;
+  };
+  
   return useQuery({
     queryKey: ['tasks', filters],
     queryFn: async () => {
@@ -18,23 +36,29 @@ export const useTasks = (filters?: { status?: string; assignedTo?: string; car?:
       }
       
       const response = await api.get(`/tasks?${params.toString()}`);
+      
+      // ⚡ INSTANT: Save to localStorage
+      try {
+        const cacheKey = `tasks_cache_${JSON.stringify(filters || {})}`;
+        localStorage.setItem(cacheKey, JSON.stringify({
+          data: response.data,
+          timestamp: Date.now()
+        }));
+      } catch (err) {
+        console.error('Failed to cache tasks:', err);
+      }
+      
       return response.data;
     },
     enabled: shouldFetch,
-    retry: (failureCount, error: any) => {
-      // ERR_NETWORK_CHANGED uchun 2 marta retry
-      if (error?.code === 'ERR_NETWORK_CHANGED' || error?.message?.includes('network change')) {
-        return failureCount < 2;
-      }
-      // Boshqa xatolar uchun 1 marta retry
-      return failureCount < 1;
-    },
-    retryDelay: (attemptIndex) => {
-      // Har bir retry orasida 500ms kutish (tezroq)
-      return Math.min(500 * (attemptIndex + 1), 2000);
-    },
-    staleTime: 30000, // 30 seconds
-    refetchOnWindowFocus: false, // Focus'da avtomatik refetch qilmaslik
+    staleTime: 5 * 60 * 1000, // 5 daqiqa - background'da yangilanadi
+    gcTime: 10 * 60 * 1000, // 10 daqiqa cache
+    retry: 1, // Faqat 1 marta retry
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    notifyOnChangeProps: ['data'],
+    initialData: getCachedData, // ⚡ INSTANT: Darhol cache'dan yuklash
   });
 };
 
@@ -46,21 +70,15 @@ export const useCarTasks = (carId: string) => {
       const response = await api.get(`/tasks?car=${carId}`);
       return response.data;
     },
-    enabled: !!carId && !carId.startsWith('temp_'), // Temp ID'lar uchun so'rov yubormaslik
-    retry: (failureCount, error: any) => {
-      // ERR_NETWORK_CHANGED uchun 2 marta retry
-      if (error?.code === 'ERR_NETWORK_CHANGED' || error?.message?.includes('network change')) {
-        return failureCount < 2;
-      }
-      // Boshqa xatolar uchun 1 marta retry
-      return failureCount < 1;
-    },
-    retryDelay: (attemptIndex) => {
-      // Har bir retry orasida 500ms kutish (tezroq)
-      return Math.min(500 * (attemptIndex + 1), 2000);
-    },
-    staleTime: 30000, // 30 seconds
-    refetchOnWindowFocus: false, // Focus'da avtomatik refetch qilmaslik
+    enabled: !!carId && !carId.startsWith('temp_'),
+    staleTime: Infinity, // Hech qachon eski bo'lmaydi - instant loading
+    gcTime: Infinity, // Hech qachon o'chirilmaydi
+    retry: 0, // Qayta urinmaslik - maksimal tezlik
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    notifyOnChangeProps: ['data'],
+    placeholderData: (previousData) => previousData, // Cache'dan instant yuklash
   });
 };
 

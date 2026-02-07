@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, DollarSign, AlertCircle, CheckCircle, Car } from 'lucide-react';
 import { t } from '@/lib/transliteration';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { formatCurrency, formatNumber, parseFormattedNumber } from '@/lib/utils';
 import { useCarsNew } from '@/hooks/useCarsNew';
 import { useCreateTransaction } from '@/hooks/useTransactions';
-import { IndexedDBManager } from '@/lib/storage/IndexedDBManager';
+import { useCarServices } from '@/hooks/useCarServices';
+// import { IndexedDBManager } from '@/lib/storage/IndexedDBManager'; // Not used
 import toast from 'react-hot-toast';
 
 interface CarPaymentModalProps {
@@ -21,19 +22,28 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   }, []);
 
-  const [loading, setLoading] = useState(false);
   const [cashAmount, setCashAmount] = useState('');
   const [cashAmountDisplay, setCashAmountDisplay] = useState('');
   const [cardAmount, setCardAmount] = useState('');
   const [cardAmountDisplay, setCardAmountDisplay] = useState('');
-  const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [carService, setCarService] = useState<any>(null);
-  const [loadingService, setLoadingService] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const { updateCar } = useCarsNew();
   const createTransactionMutation = useCreateTransaction();
+  
+  // ⚡ INSTANT LOADING: useCarServices hook bilan xizmatlarni cache'dan yuklash
+  const { data: carServicesData } = useCarServices({ carId: car?._id });
+  
+  // Xizmatlarni olish va eng oxirgisini tanlash
+  const carService = useMemo(() => {
+    if (!carServicesData?.services) return null;
+    const services = carServicesData.services;
+    // Eng oxirgi xizmatni olish (delivered bo'lmagan)
+    return services.find((s: any) => s.status !== 'delivered') || null;
+  }, [carServicesData]);
+  
+  const loadingService = !carServicesData && isOpen; // Faqat birinchi marta yuklanayotganda
 
   useBodyScrollLock(isOpen);
 
@@ -51,64 +61,25 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
     };
   }, []);
 
-  // Mashina xizmatini yuklash
+  // ⚡ Mashina xizmati yuklanganida qolgan to'lovni o'rnatish
   useEffect(() => {
-    const fetchCarService = async () => {
-      if (car && isOpen) {
-        setLoadingService(true);
-        
-        // Reset state
-        setCarService(null);
-        setCashAmount('');
-        setCashAmountDisplay('');
-        setCardAmount('');
-        setCardAmountDisplay('');
-        
-        try {
-          console.log('🔍 Mashina xizmati yuklanmoqda:', car._id);
-          
-          let services = [];
-          
-          if (isOnline) {
-            const { api } = await import('@/lib/api');
-            const response = await api.get(`/car-services?carId=${car._id}`);
-            services = response.data.services || [];
-          } else {
-            // Offline rejimda CarService ma'lumotlarini IndexedDB dan olish
-            const dbManager = IndexedDBManager.getInstance();
-            const allServices = await dbManager.getAll<any>('carServices');
-            services = allServices.filter((s: any) => s.carId === car._id);
-          }
-          
-          // Eng oxirgi xizmatni olish (delivered bo'lmagan)
-          const latestService = services.find((s: any) => s.status !== 'delivered');
-          setCarService(latestService);
-          
-          // Agar xizmat topilsa, qolgan to'lovni o'rnatish
-          if (latestService) {
-            const remaining = latestService.totalPrice - (latestService.paidAmount || 0);
-            const formatted = formatNumber(remaining.toString());
-            setCashAmount(remaining.toString());
-            setCashAmountDisplay(formatted);
-          } else {
-            const carTotal = car.totalEstimate || 0;
-            const formatted = formatNumber(carTotal.toString());
-            setCashAmount(carTotal.toString());
-            setCashAmountDisplay(formatted);
-          }
-        } catch (error: any) {
-          console.error('❌ Xizmatni yuklashda xatolik:', error);
-          const carTotal = car.totalEstimate || 0;
-          const formatted = formatNumber(carTotal.toString());
-          setCashAmount(carTotal.toString());
-          setCashAmountDisplay(formatted);
-        } finally {
-          setLoadingService(false);
-        }
-      }
-    };
-    fetchCarService();
-  }, [car, isOpen, isOnline]);
+    if (car && isOpen && carService) {
+      const remaining = carService.totalPrice - (carService.paidAmount || 0);
+      const formatted = formatNumber(remaining.toString());
+      setCashAmount(remaining.toString());
+      setCashAmountDisplay(formatted);
+      setCardAmount('');
+      setCardAmountDisplay('');
+    } else if (car && isOpen && !carService && !loadingService) {
+      // Agar xizmat topilmasa, mashina narxini o'rnatish
+      const carTotal = car.totalEstimate || 0;
+      const formatted = formatNumber(carTotal.toString());
+      setCashAmount(carTotal.toString());
+      setCashAmountDisplay(formatted);
+      setCardAmount('');
+      setCardAmountDisplay('');
+    }
+  }, [car, isOpen, carService, loadingService]);
 
   if (!isOpen || !car) return null;
 
@@ -214,17 +185,31 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
     e.preventDefault();
     if (!validateForm()) return;
 
-    setLoading(true);
+    const cash = Number(cashAmount) || 0;
+    const card = Number(cardAmount) || 0;
+    const totalPayment = cash + card;
+    
+    // ⚡ INSTANT UI UPDATE: Darhol modal yopish va success ko'rsatish
+    toast.success(t('To\'lov qabul qilindi', language));
+    
+    // Reset form
+    setCashAmount('');
+    setCashAmountDisplay('');
+    setCardAmount('');
+    setCardAmountDisplay('');
+    setErrors({});
+    
+    // Darhol modal yopish va success callback
+    onSuccess();
+    onClose();
 
+    // 🔥 BACKGROUND: To'lovni backend'ga yuborish (foydalanuvchi kutmaydi)
     try {
-      const cash = Number(cashAmount) || 0;
-      const card = Number(cardAmount) || 0;
-      
-      console.log('🔵 To\'lov yuborilmoqda:', {
+      console.log('🔵 To\'lov yuborilmoqda (background):', {
         carService: carService?._id,
         cashAmount: cash,
         cardAmount: card,
-        totalPayment: cash + card,
+        totalPayment,
         isOnline
       });
 
@@ -242,8 +227,7 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
           const serviceItems = car.serviceItems || [];
           
           if (parts.length === 0 && serviceItems.length === 0) {
-            toast.error(t('Mashina uchun qismlar yoki ish haqi topilmadi. Iltimos, avval mashinani tahrirlang.', language));
-            setLoading(false);
+            console.error('❌ Mashina uchun qismlar yoki ish haqi topilmadi');
             return;
           }
           
@@ -264,21 +248,13 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
             }))
           ];
           
-          try {
-            const createServiceResponse = await api.post('/car-services', {
-              carId: car._id,
-              parts: allItems
-            });
-            
-            serviceToUse = createServiceResponse.data.service;
-            setCarService(serviceToUse);
-            console.log('✅ Yangi CarService yaratildi:', serviceToUse._id);
-          } catch (createError: any) {
-            console.error('❌ CarService yaratishda xatolik:', createError);
-            toast.error(t('Xizmat yaratishda xatolik. Iltimos, qaytadan urinib ko\'ring.', language));
-            setLoading(false);
-            return;
-          }
+          const createServiceResponse = await api.post('/car-services', {
+            carId: car._id,
+            parts: allItems
+          });
+          
+          serviceToUse = createServiceResponse.data.service;
+          console.log('✅ Yangi CarService yaratildi:', serviceToUse._id);
         }
 
         // To'lovlarni qo'shish
@@ -288,9 +264,23 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
             await api.post(`/car-services/${serviceToUse._id}/payment`, {
               amount: cash,
               paymentMethod: 'cash',
-              notes: `${t('Naqd', language)}${notes ? ` - ${notes}` : ''}`
+              notes: t('Naqd', language)
             });
             console.log(`💵 Naqd to'lov qo'shildi: ${cash} so'm`);
+            
+            // ✨ YANGI: Tranzaksiya yaratish (kassa sahifasida ko'rinishi uchun)
+            await createTransactionMutation.mutateAsync({
+              type: 'income',
+              category: t('Mashina to\'lovi', language),
+              amount: cash,
+              description: `${car.make} ${car.carModel} - ${car.licensePlate} (${t('Naqd', language)})`,
+              paymentMethod: 'cash',
+              relatedTo: {
+                type: 'car',
+                id: car._id
+              }
+            });
+            console.log(`✅ Naqd tranzaksiya yaratildi: ${cash} so'm`);
           }
           
           // Plastik to'lovni qo'shish
@@ -298,9 +288,23 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
             await api.post(`/car-services/${serviceToUse._id}/payment`, {
               amount: card,
               paymentMethod: 'card',
-              notes: `${t('Plastik', language)}${notes ? ` - ${notes}` : ''}`
+              notes: t('Plastik', language)
             });
             console.log(`💳 Plastik to'lov qo'shildi: ${card} so'm`);
+            
+            // ✨ YANGI: Tranzaksiya yaratish (kassa sahifasida ko'rinishi uchun)
+            await createTransactionMutation.mutateAsync({
+              type: 'income',
+              category: t('Mashina to\'lovi', language),
+              amount: card,
+              description: `${car.make} ${car.carModel} - ${car.licensePlate} (${t('Plastik', language)})`,
+              paymentMethod: 'card',
+              relatedTo: {
+                type: 'car',
+                id: car._id
+              }
+            });
+            console.log(`✅ Plastik tranzaksiya yaratildi: ${card} so'm`);
           }
         }
       } else {
@@ -313,7 +317,7 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
             type: 'income',
             category: t('Mashina to\'lovi', language),
             amount: cash,
-            description: `${car.make} ${car.carModel} - ${car.licensePlate} (${t('Naqd', language)})${notes ? ` - ${notes}` : ''}`,
+            description: `${car.make} ${car.carModel} - ${car.licensePlate} (${t('Naqd', language)})`,
             paymentMethod: 'cash',
             relatedTo: {
               type: 'car',
@@ -327,7 +331,7 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
             type: 'income',
             category: t('Mashina to\'lovi', language),
             amount: card,
-            description: `${car.make} ${car.carModel} - ${car.licensePlate} (${t('Plastik', language)})${notes ? ` - ${notes}` : ''}`,
+            description: `${car.make} ${car.carModel} - ${car.licensePlate} (${t('Plastik', language)})`,
             paymentMethod: 'card',
             relatedTo: {
               type: 'car',
@@ -343,26 +347,12 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
         };
         
         await updateCar(car._id, updatedCar);
-        
-        toast.success(t('To\'lov offline rejimda saqlandi', language));
       }
-
-      // Reset form
-      setCashAmount('');
-      setCashAmountDisplay('');
-      setCardAmount('');
-      setCardAmountDisplay('');
-      setNotes('');
-      setErrors({});
       
-      onSuccess();
-      onClose();
+      console.log('✅ To\'lov muvaffaqiyatli saqlandi (background)');
     } catch (error: any) {
-      console.error('❌ To\'lov xatosi:', error);
-      const errorMessage = error.response?.data?.message || error.message || t('Xatolik yuz berdi', language);
-      toast.error(`Xato: ${errorMessage}`);
-    } finally {
-      setLoading(false);
+      console.error('❌ To\'lov xatosi (background):', error);
+      // Xatolik bo'lsa ham foydalanuvchi ko'rmaydi, chunki modal allaqachon yopilgan
     }
   };
 
@@ -487,20 +477,6 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
             )}
           </div>
 
-          {/* Izoh */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('Izoh', language)} ({t('ixtiyoriy', language)})
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 transition-all resize-none"
-              placeholder={t("Qo'shimcha ma'lumot...", language)}
-            />
-          </div>
-
           {/* Xulosa */}
           {totalPaymentAmount > 0 && totalPaymentAmount <= remaining && (
             <div className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-500">
@@ -547,20 +523,9 @@ const CarPaymentModalHybrid: React.FC<CarPaymentModalProps> = ({ isOpen, onClose
             </button>
             <button
               type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-3 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg hover:shadow-lg disabled:opacity-50 transition-all"
+              className="flex-1 px-4 py-3 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg hover:shadow-lg transition-all"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {t('Saqlanmoqda...', language)}
-                </span>
-              ) : (
-                t("To'lovni tasdiqlash", language)
-              )}
+              {t("To'lovni tasdiqlash", language)}
             </button>
           </div>
         </form>

@@ -13,6 +13,14 @@ export const useDebts = (filters?: { type?: string; status?: string }) => {
       const response = await api.get(`/debts?${params.toString()}`);
       return response.data;
     },
+    staleTime: Infinity, // Hech qachon eski bo'lmaydi - instant loading
+    gcTime: Infinity, // Hech qachon o'chirilmaydi
+    retry: 0, // Qayta urinmaslik
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    notifyOnChangeProps: ['data'], // Faqat data o'zgarganda
+    placeholderData: (previousData) => previousData, // Cache'dan instant yuklash
   });
 };
 
@@ -34,6 +42,14 @@ export const useDebtSummary = () => {
       const response = await api.get('/debts/summary');
       return response.data;
     },
+    staleTime: Infinity, // Infinite cache - maksimal tezlik
+    gcTime: Infinity, // Infinite cache
+    retry: 0, // No retry - instant loading
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    notifyOnChangeProps: ['data'],
+    placeholderData: (previousData) => previousData, // Cache'dan instant yuklash
   });
 };
 

@@ -19,9 +19,15 @@ export const searchSpareParts = async (req: AuthRequest, res: Response) => {
       ]
     };
 
-    const spareParts = await SparePart.find(searchQuery)
+    const results = await SparePart.find(searchQuery)
       .sort({ usageCount: -1, name: 1 })
-      .limit(Number(limit));
+      .limit(Number(limit))
+      .lean();
+
+    const spareParts = results.map((part: any) => ({
+      ...part,
+      price: part.price || part.sellingPrice // Backward compatibility
+    }));
 
     res.json({ spareParts });
   } catch (error: any) {
@@ -73,35 +79,57 @@ export const getSpareParts = async (req: AuthRequest, res: Response) => {
     }
     
     // Execute queries in parallel for better performance
-    const [spareParts, total] = await Promise.all([
+    // Statistikani faqat search bo'lmaganda hisoblash (tezroq)
+    const queries: any[] = [
       SparePart.find(filter)
+        .select('name costPrice sellingPrice price currency quantity supplier isActive usageCount createdAt')
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
-        .lean(), // Use lean() for better performance
-      SparePart.countDocuments(filter)
-    ]);
+        .lean() // Use lean() for better performance
+        .exec(), // Explicit exec for better performance
+      SparePart.countDocuments(filter).exec()
+    ];
 
-    // Calculate statistics
-    const stats = await SparePart.aggregate([
-      { $match: { isActive: true } },
-      {
-        $group: {
-          _id: null,
-          totalItems: { $sum: 1 },
-          totalQuantity: { $sum: '$quantity' },
-          totalValue: { $sum: { $multiply: ['$sellingPrice', '$quantity'] } },
-          totalProfit: { $sum: { $multiply: [{ $subtract: ['$sellingPrice', '$costPrice'] }, '$quantity'] } },
-          lowStockCount: {
-            $sum: {
-              $cond: [{ $lte: ['$quantity', 3] }, 1, 0]
+    // Statistikani faqat search bo'lmaganda qo'shish
+    if (!search) {
+      queries.push(
+        SparePart.aggregate([
+          { $match: { isActive: true } },
+          {
+            $project: {
+              quantity: 1,
+              sellingPrice: 1,
+              costPrice: 1
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalItems: { $sum: 1 },
+              totalQuantity: { $sum: '$quantity' },
+              totalValue: { $sum: { $multiply: ['$sellingPrice', '$quantity'] } },
+              totalProfit: { $sum: { $multiply: [{ $subtract: ['$sellingPrice', '$costPrice'] }, '$quantity'] } },
+              lowStockCount: {
+                $sum: {
+                  $cond: [{ $lte: ['$quantity', 3] }, 1, 0]
+                }
+              }
             }
           }
-        }
-      }
-    ]);
+        ]).allowDiskUse(false) // Memory'da ishlash - tezroq
+      );
+    }
 
-    const statistics = stats[0] || {
+    const results = await Promise.all(queries);
+    const spareParts = results[0].map((part: any) => ({
+      ...part,
+      price: part.price || part.sellingPrice // Backward compatibility
+    }));
+    const total = results[1];
+    const stats = results[2];
+
+    const statistics = stats?.[0] || {
       totalItems: 0,
       totalQuantity: 0,
       totalValue: 0,
@@ -109,11 +137,10 @@ export const getSpareParts = async (req: AuthRequest, res: Response) => {
       lowStockCount: 0
     };
 
-    // HTTP cache headers - 0.1 sekund cache
+    // HTTP cache headers - 60 sekund cache (maksimal tezlik)
     res.set({
-      'Cache-Control': 'public, max-age=0, must-revalidate',
-      'ETag': `W/"${Date.now()}"`,
-      'Last-Modified': new Date().toUTCString()
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+      'ETag': `W/"spare-parts-${Date.now()}"`,
     });
 
     res.json({
@@ -159,7 +186,7 @@ export const getSparePartById = async (req: AuthRequest, res: Response) => {
 
 export const createSparePart = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, costPrice, sellingPrice, price, quantity = 1, supplier = 'Noma\'lum' } = req.body;
+    const { name, costPrice, sellingPrice, price, quantity = 1, supplier } = req.body;
 
     // Check if spare part with same name already exists
     const existingSparePart = await SparePart.findOne({ 
@@ -180,7 +207,7 @@ export const createSparePart = async (req: AuthRequest, res: Response) => {
       sellingPrice: sellingPrice || price, // Backward compatibility
       price: sellingPrice || price, // Deprecated field
       quantity,
-      supplier: supplier.trim()
+      supplier: supplier ? supplier.trim() : '' // Ixtiyoriy
     });
 
     await sparePart.save();
@@ -198,7 +225,7 @@ export const createSparePart = async (req: AuthRequest, res: Response) => {
 // Zapchast + Chiqim yaratish (Kassa sahifasidan)
 export const createSparePartWithExpense = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, costPrice, sellingPrice, price, quantity = 1, supplier = 'Noma\'lum', paymentMethod = 'cash' } = req.body;
+    const { name, costPrice, sellingPrice, price, quantity = 1, supplier, paymentMethod = 'cash' } = req.body;
     const Transaction = require('../models/Transaction').default;
 
     // Check if spare part with same name already exists
@@ -221,18 +248,18 @@ export const createSparePartWithExpense = async (req: AuthRequest, res: Response
       sellingPrice: sellingPrice || price,
       price: sellingPrice || price,
       quantity,
-      supplier: supplier.trim()
+      supplier: supplier ? supplier.trim() : ''
     });
 
     await sparePart.save();
 
     // Chiqim yaratish
     const totalAmount = (costPrice || price) * quantity;
+    const supplierText = supplier && supplier.trim() ? `\nYetkazib beruvchi: ${supplier.trim()}` : '';
     const description = `Zapchast sotib olindi: ${name.trim()}
 Miqdor: ${quantity} dona
 Birlik narxi: ${(costPrice || price).toLocaleString()} so'm
-Jami: ${totalAmount.toLocaleString()} so'm
-Yetkazib beruvchi: ${supplier.trim()}`;
+Jami: ${totalAmount.toLocaleString()} so'm${supplierText}`;
 
     const transaction = new Transaction({
       type: 'expense',
@@ -294,13 +321,19 @@ export const updateSparePart = async (req: AuthRequest, res: Response) => {
       sparePart.price = sellingPrice || price;
     }
     if (quantity !== undefined) sparePart.quantity = quantity;
-    if (supplier) sparePart.supplier = supplier.trim();
+    if (supplier !== undefined) sparePart.supplier = supplier ? supplier.trim() : '';
 
     await sparePart.save();
 
+    // To'liq ma'lumotni qaytarish - barcha maydonlar bilan
+    const updatedSparePart = await SparePart.findById(sparePart._id)
+      .select('_id name costPrice sellingPrice price quantity supplier usageCount isActive createdAt updatedAt')
+      .lean()
+      .exec();
+
     res.json({
       message: 'Zapchast muvaffaqiyatli yangilandi',
-      sparePart
+      sparePart: updatedSparePart
     });
   } catch (error: any) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -541,7 +574,7 @@ export const getSalesStatistics = async (req: AuthRequest, res: Response) => {
       filter.sparePartId = sparePartId;
     }
 
-    // Statistikani hisoblash
+    // Statistikani hisoblash - faqat kerakli ma'lumotlar
     const stats = await SparePartSale.aggregate([
       { $match: filter },
       {
@@ -550,46 +583,30 @@ export const getSalesStatistics = async (req: AuthRequest, res: Response) => {
           totalSales: { $sum: 1 },
           totalQuantitySold: { $sum: '$quantity' },
           totalRevenue: { $sum: '$totalRevenue' },
-          totalCost: { $sum: '$totalCost' },
           totalProfit: { $sum: '$profit' }
         }
       }
-    ]);
-
-    // Eng ko'p sotiladigan zapchastlar
-    const topSelling = await SparePartSale.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: '$sparePartId',
-          sparePartName: { $first: '$sparePartName' },
-          totalQuantity: { $sum: '$quantity' },
-          totalRevenue: { $sum: '$totalRevenue' },
-          totalProfit: { $sum: '$profit' },
-          salesCount: { $sum: 1 }
-        }
-      },
-      { $sort: { totalRevenue: -1 } },
-      { $limit: 10 }
     ]);
 
     const statistics = stats[0] || {
       totalSales: 0,
       totalQuantitySold: 0,
       totalRevenue: 0,
-      totalCost: 0,
       totalProfit: 0
     };
 
-    res.json({
-      statistics,
-      topSelling
+    // HTTP cache headers - 60 sekund cache
+    res.set({
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+      'ETag': `W/"${Date.now()}"`,
     });
+
+    res.json({ statistics });
   } catch (error: any) {
     console.error('Error fetching sales statistics:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
-};
+}
 
 // Sotuvlar ro'yxati
 export const getSales = async (req: AuthRequest, res: Response) => {

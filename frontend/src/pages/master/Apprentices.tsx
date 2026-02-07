@@ -1,38 +1,30 @@
-import React, { useState } from 'react';
-import { useApprentices } from '@/hooks/useUsers';
-import CreateApprenticeModal from '@/components/CreateApprenticeModal';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useApprenticesNew } from '@/hooks/useApprenticesNew';
 import ViewApprenticeModal from '@/components/ViewApprenticeModal';
+import CreateApprenticeModal from '@/components/CreateApprenticeModal';
 import EditApprenticeModal from '@/components/EditApprenticeModal';
 import DeleteApprenticeModal from '@/components/DeleteApprenticeModal';
 import { Plus, Search, Users, Calendar, TrendingUp, Award, Eye, Edit, Trash2, CheckCircle, Target, Mail, Wallet } from 'lucide-react';
 import { User } from '@/types';
 import { t } from '@/lib/transliteration';
 
-
-const Apprentices: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedApprentice, setSelectedApprentice] = useState<User | null>(null);
-  const { data: apprenticesData, isLoading, refetch } = useApprentices();
-
-  // localStorage'dan tilni o'qish
-  const language = React.useMemo<'latin' | 'cyrillic'>(() => {
-    const savedLanguage = localStorage.getItem('language');
-    return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
-  }, []);
-
-  const apprentices = (apprenticesData as any)?.users || [];
-
-  const filteredApprentices = apprentices.filter((apprentice: User) =>
-    apprentice.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    apprentice.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    apprentice.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const getAvatarGradient = (index: number) => {
+// Apprentice Card komponentini alohida ajratish va memo qilish
+const ApprenticeCard = React.memo(({ 
+  apprentice, 
+  index, 
+  language,
+  onView,
+  onEdit,
+  onDelete 
+}: { 
+  apprentice: User; 
+  index: number; 
+  language: 'latin' | 'cyrillic';
+  onView: (apprentice: User) => void;
+  onEdit: (apprentice: User) => void;
+  onDelete: (apprentice: User) => void;
+}) => {
+  const getAvatarGradient = (idx: number) => {
     const gradients = [
       'from-blue-500 to-indigo-600',
       'from-purple-500 to-pink-600',
@@ -41,7 +33,7 @@ const Apprentices: React.FC = () => {
       'from-cyan-500 to-blue-600',
       'from-violet-500 to-purple-600',
     ];
-    return gradients[index % gradients.length];
+    return gradients[idx % gradients.length];
   };
 
   const getPerformanceColor = (percentage: number) => {
@@ -51,28 +43,238 @@ const Apprentices: React.FC = () => {
     return 'text-red-600 bg-red-100';
   };
 
-  const handleViewApprentice = (apprentice: User) => {
+  const stats = apprentice.stats || {
+    totalTasks: 0,
+    completedTasks: 0,
+    approvedTasks: 0,
+    performance: 0,
+    awards: 0
+  };
+
+  return (
+    <div className="group relative bg-white rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+      {/* Card Header with Gradient */}
+      <div className={`h-16 sm:h-20 bg-gradient-to-r ${getAvatarGradient(index)} relative rounded-t-xl`}>
+        <div className="absolute inset-0 bg-black opacity-10 rounded-t-xl"></div>
+        <div className="absolute -bottom-6 sm:-bottom-8 left-4 sm:left-5">
+          {apprentice.profileImage ? (
+            <img 
+              src={`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}${apprentice.profileImage}`}
+              alt={apprentice.name}
+              className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl object-cover shadow-lg border-4 border-white"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const fallback = target.nextElementSibling as HTMLElement;
+                if (fallback) fallback.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <div 
+            className={`flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-xl bg-gradient-to-br ${getAvatarGradient(index)} text-white font-bold text-lg sm:text-xl shadow-lg border-4 border-white`}
+            style={{ display: apprentice.profileImage ? 'none' : 'flex' }}
+          >
+            {apprentice.name.charAt(0).toUpperCase()}
+          </div>
+        </div>
+      </div>
+
+      {/* Card Content */}
+      <div className="pt-8 sm:pt-10 px-4 sm:px-5 pb-4 sm:pb-5">
+        {/* Name and Username */}
+        <div className="mb-3">
+          <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors truncate">
+            {apprentice.name}
+          </h3>
+          <p className="text-xs sm:text-sm text-gray-500 flex items-center">
+            <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>
+            <span className="truncate">@{apprentice.username}</span>
+          </p>
+          {apprentice.profession && (
+            <p className="text-xs text-blue-600 font-medium mt-1 truncate">
+              {apprentice.profession}
+            </p>
+          )}
+          {apprentice.experience !== undefined && apprentice.experience > 0 && (
+            <p className="text-xs text-gray-500 mt-0.5">
+              {t('Tajriba', language)}: {apprentice.experience} {t('yil', language)}
+            </p>
+          )}
+        </div>
+
+        {/* Contact Info */}
+        <div className="space-y-2 mb-3 pb-3 border-b border-gray-100">
+          <div className="flex items-center text-xs sm:text-sm text-gray-600">
+            <Mail className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-gray-400 flex-shrink-0" />
+            <span className="truncate">{apprentice.email}</span>
+          </div>
+          <div className="flex items-center text-xs sm:text-sm text-gray-600">
+            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-gray-400 flex-shrink-0" />
+            <span>{new Date(apprentice.createdAt).toLocaleDateString('uz-UZ')}</span>
+          </div>
+        </div>
+
+        {/* Performance Stats */}
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs sm:text-sm font-medium text-gray-700">Samaradorlik</span>
+            <span className={`text-xs sm:text-sm font-bold px-2 py-1 rounded-lg ${getPerformanceColor(stats.performance)}`}>
+              {stats.performance}%
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-500"
+              style={{ width: `${stats.performance}%` }}
+            ></div>
+          </div>
+        </div>
+
+        {/* Task Stats Grid */}
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+          <div className="text-center p-2 sm:p-2.5 bg-blue-50 rounded-lg border border-blue-100">
+            <Target className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 mx-auto mb-1" />
+            <p className="text-sm sm:text-base font-bold text-blue-900">{stats.totalTasks}</p>
+            <p className="text-xs text-blue-600 font-medium">{t("Vazifalar", language)}</p>
+          </div>
+          <div className="text-center p-2 sm:p-2.5 bg-green-50 rounded-lg border border-green-100">
+            <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 mx-auto mb-1" />
+            <p className="text-sm sm:text-base font-bold text-green-900">{stats.completedTasks}</p>
+            <p className="text-xs text-green-600 font-medium">{t("Bajarilgan", language)}</p>
+          </div>
+          <div className="text-center p-2 sm:p-2.5 bg-purple-50 rounded-lg border border-purple-100">
+            <Award className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 mx-auto mb-1" />
+            <p className="text-sm sm:text-base font-bold text-purple-900">{stats.awards}</p>
+            <p className="text-xs text-purple-600 font-medium">{t("Mukofot", language)}</p>
+          </div>
+        </div>
+
+        {/* Earnings Display */}
+        <div className="mb-4 p-2.5 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border border-emerald-200">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 shadow-sm">
+              <Wallet className="h-4 w-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-emerald-600 font-medium">{t("Jami daromad", language)}</p>
+              <p className="text-sm sm:text-base font-bold text-emerald-900 truncate">
+                {(apprentice.totalEarnings || 0).toLocaleString()} {t("so'm", language)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => onView(apprentice)}
+            className="flex-1 flex items-center justify-center px-3 sm:px-4 py-2 bg-blue-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg"
+            title={t("Ko'rish", language)}
+          >
+            <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">{t("Ko'rish", language)}</span>
+            <span className="sm:hidden">{t("Ko'rish", language)}</span>
+          </button>
+          <button 
+            onClick={() => onEdit(apprentice)}
+            className="flex items-center justify-center p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all duration-200"
+            title={t("Tahrirlash", language)}
+          >
+            <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+          </button>
+          <button 
+            onClick={() => onDelete(apprentice)}
+            className="flex items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-all duration-200"
+            title={t("O'chirish", language)}
+          >
+            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Status Badge */}
+      <div className="absolute top-16 sm:top-24 right-3 sm:right-4">
+        <span className="inline-flex items-center px-2 sm:px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 border border-green-200 shadow-sm">
+          <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1 sm:mr-1.5 animate-pulse"></span>
+          <span className="hidden sm:inline">{t("Faol", language)}</span>
+          <span className="sm:hidden">●</span>
+        </span>
+      </div>
+    </div>
+  );
+});
+
+
+const Apprentices: React.FC = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedApprentice, setSelectedApprentice] = useState<User | null>(null);
+  
+  // ⚡ ULTRA FAST: Yangi optimallashtirilgan hook
+  const { apprentices: apprenticesData, loading: isLoading, createApprentice, deleteApprentice, updateApprentice } = useApprenticesNew();
+
+  // localStorage'dan tilni o'qish
+  const language = useMemo<'latin' | 'cyrillic'>(() => {
+    const savedLanguage = localStorage.getItem('language');
+    return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
+  }, []);
+
+  const apprentices = useMemo(() => apprenticesData || [], [apprenticesData]);
+
+  // Agar ma'lumot yo'q va loading bo'lsa - birinchi yuklash
+  const isFirstLoad = isLoading && apprentices.length === 0;
+
+  const filteredApprentices = useMemo(() => 
+    apprentices.filter((apprentice: User) =>
+      apprentice.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      apprentice.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      apprentice.email.toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    [apprentices, searchTerm]
+  );
+
+  // Stats hisoblash - memoized
+  const stats = useMemo(() => {
+    const currentDate = new Date();
+    const thisMonthCount = apprentices.filter((apprentice: User) => {
+      const createdDate = new Date(apprentice.createdAt);
+      return createdDate.getMonth() === currentDate.getMonth() && 
+             createdDate.getFullYear() === currentDate.getFullYear();
+    }).length;
+
+    return {
+      total: apprentices.length,
+      active: apprentices.length,
+      thisMonth: thisMonthCount,
+      avgPerformance: 85
+    };
+  }, [apprentices]);
+
+  const handleViewApprentice = useCallback((apprentice: User) => {
     setSelectedApprentice(apprentice);
     setIsViewModalOpen(true);
-  };
+  }, []);
 
-  const handleEditApprentice = (apprentice: User) => {
+  const handleEditApprentice = useCallback((apprentice: User) => {
     setSelectedApprentice(apprentice);
     setIsEditModalOpen(true);
-  };
+  }, []);
 
-  const handleDeleteApprentice = (apprentice: User) => {
+  const handleDeleteApprentice = useCallback((apprentice: User) => {
     setSelectedApprentice(apprentice);
     setIsDeleteModalOpen(true);
-  };
+  }, []);
 
-  const handleUpdate = () => {
-    refetch();
-  };
+  const handleUpdate = useCallback(() => {
+    // Refresh kerak emas - optimistic update ishlaydi
+  }, []);
 
-  const handleDelete = () => {
-    refetch();
-  };
+  const handleDelete = useCallback(() => {
+    // Refresh kerak emas - optimistic update ishlaydi
+  }, []);
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-6 sm:pb-8 px-4 sm:px-0">
@@ -117,7 +319,7 @@ const Apprentices: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm font-medium text-blue-600 mb-1">{t("Jami shogirdlar", language)}</p>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-900">{apprentices.length}</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-900">{stats.total}</p>
             </div>
             <div className="flex h-10 w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 items-center justify-center rounded-xl bg-blue-500 shadow-lg">
               <Users className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
@@ -129,7 +331,7 @@ const Apprentices: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm font-medium text-green-600 mb-1">{t("Faol shogirdlar", language)}</p>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-green-900">{apprentices.length}</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-green-900">{stats.active}</p>
             </div>
             <div className="flex h-10 w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 items-center justify-center rounded-xl bg-green-500 shadow-lg">
               <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
@@ -141,14 +343,7 @@ const Apprentices: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm font-medium text-purple-600 mb-1">{t("Bu oy qo'shilgan", language)}</p>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-purple-900">
-                {apprentices.filter((apprentice: User) => {
-                  const createdDate = new Date(apprentice.createdAt);
-                  const currentDate = new Date();
-                  return createdDate.getMonth() === currentDate.getMonth() && 
-                         createdDate.getFullYear() === currentDate.getFullYear();
-                }).length}
-              </p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-purple-900">{stats.thisMonth}</p>
             </div>
             <div className="flex h-10 w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 items-center justify-center rounded-xl bg-purple-500 shadow-lg">
               <Calendar className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
@@ -160,7 +355,7 @@ const Apprentices: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs sm:text-sm font-medium text-orange-600 mb-1">{t("O'rtacha natija", language)}</p>
-              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-orange-900">85%</p>
+              <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-orange-900">{stats.avgPerformance}%</p>
             </div>
             <div className="flex h-10 w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 items-center justify-center rounded-xl bg-orange-500 shadow-lg">
               <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-white" />
@@ -170,13 +365,39 @@ const Apprentices: React.FC = () => {
       </div>
 
       {/* Apprentices Grid with Enhanced Cards */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-12 sm:py-16">
-          <div className="relative">
-            <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-4 border-blue-200"></div>
-            <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+      {isFirstLoad ? (
+        <div className="flex flex-col items-center justify-center py-16 sm:py-20">
+          <div className="relative mb-6">
+            <div className="animate-spin rounded-full h-16 w-16 sm:h-20 sm:w-20 border-4 border-blue-200"></div>
+            <div className="animate-spin rounded-full h-16 w-16 sm:h-20 sm:w-20 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
           </div>
-          <p className="mt-4 text-sm sm:text-base text-gray-600 font-medium">Shogirdlar yuklanmoqda...</p>
+          <div className="text-center">
+            <p className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
+              {t("Shogirdlar yuklanmoqda", language)}
+            </p>
+            <p className="text-sm sm:text-base text-gray-600">
+              {t("Iltimos kuting...", language)}
+            </p>
+          </div>
+          {/* Skeleton loader */}
+          <div className="w-full max-w-6xl mt-8 grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="bg-white rounded-xl border-2 border-gray-100 p-6 animate-pulse">
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="h-16 w-16 bg-gray-200 rounded-xl"></div>
+                  <div className="flex-1">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="h-3 bg-gray-200 rounded"></div>
+                  <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                  <div className="h-20 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : filteredApprentices.length === 0 ? (
         <div className="text-center py-12 sm:py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 mx-4 sm:mx-0">
@@ -204,171 +425,17 @@ const Apprentices: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredApprentices.map((apprentice: User, index: number) => {
-            // Real data from backend
-            const stats = apprentice.stats || {
-              totalTasks: 0,
-              completedTasks: 0,
-              approvedTasks: 0,
-              performance: 0,
-              awards: 0
-            };
-            
-            return (
-              <div 
-                key={apprentice._id} 
-                className="group relative bg-white rounded-xl border-2 border-gray-100 hover:border-blue-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
-              >
-                {/* Card Header with Gradient */}
-                <div className={`h-16 sm:h-20 bg-gradient-to-r ${getAvatarGradient(index)} relative rounded-t-xl`}>
-                  <div className="absolute inset-0 bg-black opacity-10 rounded-t-xl"></div>
-                  <div className="absolute -bottom-6 sm:-bottom-8 left-4 sm:left-5">
-                    {apprentice.profileImage ? (
-                      <img 
-                        src={`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}${apprentice.profileImage}`}
-                        alt={apprentice.name}
-                        className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl object-cover shadow-lg border-4 border-white"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const fallback = target.nextElementSibling as HTMLElement;
-                          if (fallback) fallback.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    <div 
-                      className={`flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-xl bg-gradient-to-br ${getAvatarGradient(index)} text-white font-bold text-lg sm:text-xl shadow-lg border-4 border-white`}
-                      style={{ display: apprentice.profileImage ? 'none' : 'flex' }}
-                    >
-                      {apprentice.name.charAt(0).toUpperCase()}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Content */}
-                <div className="pt-8 sm:pt-10 px-4 sm:px-5 pb-4 sm:pb-5">
-                  {/* Name and Username */}
-                  <div className="mb-3">
-                    <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors truncate">
-                      {apprentice.name}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-gray-500 flex items-center">
-                      <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>
-                      <span className="truncate">@{apprentice.username}</span>
-                    </p>
-                    {apprentice.profession && (
-                      <p className="text-xs text-blue-600 font-medium mt-1 truncate">
-                        {apprentice.profession}
-                      </p>
-                    )}
-                    {apprentice.experience !== undefined && apprentice.experience > 0 && (
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {t('Tajriba', language)}: {apprentice.experience} {t('yil', language)}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Contact Info */}
-                  <div className="space-y-2 mb-3 pb-3 border-b border-gray-100">
-                    <div className="flex items-center text-xs sm:text-sm text-gray-600">
-                      <Mail className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-gray-400 flex-shrink-0" />
-                      <span className="truncate">{apprentice.email}</span>
-                    </div>
-                    <div className="flex items-center text-xs sm:text-sm text-gray-600">
-                      <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-gray-400 flex-shrink-0" />
-                      <span>{new Date(apprentice.createdAt).toLocaleDateString('uz-UZ')}</span>
-                    </div>
-                  </div>
-
-                  {/* Performance Stats */}
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs sm:text-sm font-medium text-gray-700">Samaradorlik</span>
-                      <span className={`text-xs sm:text-sm font-bold px-2 py-1 rounded-lg ${getPerformanceColor(stats.performance)}`}>
-                        {stats.performance}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-500"
-                        style={{ width: `${stats.performance}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Task Stats Grid */}
-                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
-                    <div className="text-center p-2 sm:p-2.5 bg-blue-50 rounded-lg border border-blue-100">
-                      <Target className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 mx-auto mb-1" />
-                      <p className="text-sm sm:text-base font-bold text-blue-900">{stats.totalTasks}</p>
-                      <p className="text-xs text-blue-600 font-medium">{t("Vazifalar", language)}</p>
-                    </div>
-                    <div className="text-center p-2 sm:p-2.5 bg-green-50 rounded-lg border border-green-100">
-                      <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 mx-auto mb-1" />
-                      <p className="text-sm sm:text-base font-bold text-green-900">{stats.completedTasks}</p>
-                      <p className="text-xs text-green-600 font-medium">{t("Bajarilgan", language)}</p>
-                    </div>
-                    <div className="text-center p-2 sm:p-2.5 bg-purple-50 rounded-lg border border-purple-100">
-                      <Award className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 mx-auto mb-1" />
-                      <p className="text-sm sm:text-base font-bold text-purple-900">{stats.awards}</p>
-                      <p className="text-xs text-purple-600 font-medium">{t("Mukofot", language)}</p>
-                    </div>
-                  </div>
-
-                  {/* Earnings Display */}
-                  <div className="mb-4 p-2.5 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border border-emerald-200">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 shadow-sm">
-                        <Wallet className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-emerald-600 font-medium">{t("Jami daromad", language)}</p>
-                        <p className="text-sm sm:text-base font-bold text-emerald-900 truncate">
-                          {(apprentice.totalEarnings || 0).toLocaleString()} {t("so'm", language)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => handleViewApprentice(apprentice)}
-                      className="flex-1 flex items-center justify-center px-3 sm:px-4 py-2 bg-blue-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg"
-                      title={t("Ko'rish", language)}
-                    >
-                      <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                      <span className="hidden sm:inline">{t("Ko'rish", language)}</span>
-                      <span className="sm:hidden">{t("Ko'rish", language)}</span>
-                    </button>
-                    <button 
-                      onClick={() => handleEditApprentice(apprentice)}
-                      className="flex items-center justify-center p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all duration-200"
-                      title={t("Tahrirlash", language)}
-                    >
-                      <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteApprentice(apprentice)}
-                      className="flex items-center justify-center p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-all duration-200"
-                      title={t("O'chirish", language)}
-                    >
-                      <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Status Badge */}
-                <div className="absolute top-16 sm:top-24 right-3 sm:right-4">
-                  <span className="inline-flex items-center px-2 sm:px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 border border-green-200 shadow-sm">
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1 sm:mr-1.5 animate-pulse"></span>
-                    <span className="hidden sm:inline">{t("Faol", language)}</span>
-                    <span className="sm:hidden">●</span>
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+          {filteredApprentices.map((apprentice: User, index: number) => (
+            <ApprenticeCard
+              key={apprentice._id}
+              apprentice={apprentice}
+              index={index}
+              language={language}
+              onView={handleViewApprentice}
+              onEdit={handleEditApprentice}
+              onDelete={handleDeleteApprentice}
+            />
+          ))}
         </div>
       )}
 
@@ -376,6 +443,7 @@ const Apprentices: React.FC = () => {
       <CreateApprenticeModal 
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+        onCreate={createApprentice}
       />
 
       {/* View Apprentice Modal */}
@@ -397,6 +465,7 @@ const Apprentices: React.FC = () => {
         }}
         apprentice={selectedApprentice}
         onUpdate={handleUpdate}
+        onUpdateOptimistic={updateApprentice}
       />
 
       {/* Delete Apprentice Modal */}
@@ -408,6 +477,7 @@ const Apprentices: React.FC = () => {
         }}
         apprentice={selectedApprentice}
         onDelete={handleDelete}
+        onDeleteOptimistic={deleteApprentice}
       />
     </div>
   );

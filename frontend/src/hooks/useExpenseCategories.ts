@@ -8,7 +8,15 @@ export const useExpenseCategories = () => {
     queryFn: async () => {
       const response = await api.get('/expense-categories');
       return response.data;
-    }
+    },
+    staleTime: Infinity, // Hech qachon eski bo'lmaydi - instant loading
+    gcTime: Infinity, // Hech qachon o'chirilmaydi
+    retry: 0,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    notifyOnChangeProps: ['data'],
+    placeholderData: (previousData) => previousData, // Cache'dan instant yuklash
   });
 };
 

@@ -343,12 +343,23 @@ const EditCarStepModal: React.FC<EditCarStepModalProps> = ({ isOpen, onClose, ca
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1980 + 1 }, (_, i) => currentYear - i);
 
+  // Yuk mashinalari markalari (dunyodagi barcha mashhur markalar)
   const carMakes = [
-    'Toyota', 'Chevrolet', 'Daewoo', 'Hyundai', 'Kia', 'Nissan', 
-    'Honda', 'Mazda', 'Ford', 'Volkswagen', 'BMW', 'Mercedes-Benz',
-    'Audi', 'Lexus', 'Mitsubishi', 'Subaru', 'Suzuki', 'Lada',
-    'UAZ', 'GAZ', 'Boshqa'
-  ];
+    // Xitoy markalari
+    'FAW', 'Foton', 'Howo', 'Shacman', 'Dongfeng', 'JAC', 'Beiben', 'Camc', 'Sinotruk',
+    // Yevropa markalari
+    'Mercedes-Benz', 'MAN', 'Scania', 'Volvo', 'DAF', 'Iveco', 'Renault', 'Isuzu',
+    // Amerika markalari
+    'Freightliner', 'Kenworth', 'Peterbilt', 'Mack', 'International', 'Western Star',
+    // Yaponiya markalari
+    'Hino', 'Mitsubishi Fuso', 'UD Trucks', 'Isuzu',
+    // Rossiya va MDH markalari
+    'Kamaz', 'MAZ', 'Ural', 'GAZ', 'ZIL', 'KrAZ',
+    // Koreya markalari
+    'Hyundai', 'Kia', 'Daewoo',
+    // Boshqa
+    'Tata', 'Ashok Leyland', 'Eicher', 'Boshqa'
+  ].sort();
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-2 sm:p-4">
@@ -491,8 +502,27 @@ const EditCarStepModal: React.FC<EditCarStepModalProps> = ({ isOpen, onClose, ca
 
           {currentStep === 2 && (
             <div className="space-y-4">
+              {/* Ixtiyoriy xabar */}
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-lg">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-blue-700 font-medium">
+                      {t('Bu qism ixtiyoriy', language)}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {t('Zapchast qo\'shmasangiz ham keyingi qismga o\'tishingiz mumkin', language)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">{t("Qism qo'shish", language)}</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{t("Qism qo'shish (ixtiyoriy)", language)}</h3>
                 <span className="text-sm text-gray-500">{parts.length} {t('ta', language)}</span>
               </div>
               
@@ -629,8 +659,27 @@ const EditCarStepModal: React.FC<EditCarStepModalProps> = ({ isOpen, onClose, ca
 
           {currentStep === 3 && (
             <div className="space-y-4">
+              {/* Ixtiyoriy xabar */}
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-lg">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-blue-700 font-medium">
+                      {t('Bu qism ixtiyoriy', language)}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {t('Ish haqi qo\'shmasangiz ham keyingi qismga o\'tishingiz mumkin', language)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900">{t('Ish haqi va xizmatlar', language)}</h3>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">{t('Ish haqi va xizmatlar (ixtiyoriy)', language)}</h3>
                 <span className="text-sm text-gray-500">{serviceItems.length} {t('ta', language)}</span>
               </div>
               
@@ -764,10 +813,29 @@ const EditCarStepModal: React.FC<EditCarStepModalProps> = ({ isOpen, onClose, ca
 
           {currentStep === 4 && (
             <div className="space-y-4">
+              {/* Ixtiyoriy xabar */}
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded-lg">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-blue-700 font-medium">
+                      {t('Bu qism ixtiyoriy', language)}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {t('Vazifa qo\'shmasangiz ham o\'zgarishlarni saqlashingiz mumkin', language)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                   <ClipboardList className="h-5 w-5 mr-2 text-orange-600" />
-                  {t('Vazifalar', language)}
+                  {t('Vazifalar (ixtiyoriy)', language)}
                 </h3>
               </div>
 

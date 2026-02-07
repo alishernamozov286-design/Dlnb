@@ -8,9 +8,10 @@ import api from '@/lib/api';
 interface CreateApprenticeModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCreate?: (apprenticeData: any) => Promise<any>;
 }
 
-const CreateApprenticeModal: React.FC<CreateApprenticeModalProps> = ({ isOpen, onClose }) => {
+const CreateApprenticeModal: React.FC<CreateApprenticeModalProps> = ({ isOpen, onClose, onCreate }) => {
   const [formData, setFormData] = useState({
     name: '',
     username: '',
@@ -70,13 +71,23 @@ const CreateApprenticeModal: React.FC<CreateApprenticeModalProps> = ({ isOpen, o
         }
       }
 
-      await createApprenticeMutation.mutateAsync({
+      const apprenticeData = {
         ...formData,
         phone: getPhoneDigits(formData.phone), // Faqat raqamlarni yuborish
         profileImage: profileImageUrl,
         password: getPhoneDigits(formData.phone), // Telefon raqamni parol sifatida ishlatish
         role: 'apprentice'
-      });
+      };
+
+      // Agar onCreate prop berilgan bo'lsa, uni ishlatish (optimistic update)
+      if (onCreate) {
+        await onCreate(apprenticeData);
+      } else {
+        // Eski usul - mutation ishlatish
+        await createApprenticeMutation.mutateAsync(apprenticeData);
+      }
+      
+      // Form'ni tozalash
       setFormData({
         name: '',
         username: '',
@@ -91,7 +102,8 @@ const CreateApprenticeModal: React.FC<CreateApprenticeModalProps> = ({ isOpen, o
       setErrors({});
       onClose();
     } catch (error) {
-      }
+      // Xatolik toast orqali ko'rsatiladi
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -452,13 +464,13 @@ const CreateApprenticeModal: React.FC<CreateApprenticeModalProps> = ({ isOpen, o
               disabled={createApprenticeMutation.isPending || isUploadingImage}
               className="w-full sm:flex-1 px-4 sm:px-6 py-2.5 sm:py-3 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 order-1 sm:order-2"
             >
-              {createApprenticeMutation.isPending || isUploadingImage ? (
+              {isUploadingImage ? (
                 <span className="flex items-center justify-center">
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  {isUploadingImage ? 'Rasm yuklanmoqda...' : 'Saqlanmoqda...'}
+                  Rasm yuklanmoqda...
                 </span>
               ) : (
                 'Shogird yaratish'

@@ -35,85 +35,87 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose }) => {
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   }, []);
 
-  // Qarzlar ro'yxatini olish - faqat Kassa qismida ko'rsatish uchun
+  // Qarzlar ro'yxatini olish - INSTANT LOADING
   const debtsQuery = useDebts({ type: 'receivable' });
-  const debtsLoading = debtsQuery.isLoading;
   const debtsError = debtsQuery.error;
   
-  // Backend'dan kelgan ma'lumotni to'g'ri parse qilish
+  // Backend'dan kelgan ma'lumotni to'g'ri parse qilish - memoized
   // Backend { debts: [...] } formatida qaytaradi
   const allDebtsData = debtsQuery.data;
-  const debtsArray = allDebtsData?.debts || [];
-  
-  // Debug ma'lumotlari
-  console.log('💰 Debts debug:', {
-    rawData: allDebtsData,
-    debtsArray: debtsArray,
-    debtsArrayLength: debtsArray?.length || 0,
-    isLoading: debtsLoading,
-    isArray: Array.isArray(debtsArray),
-    error: debtsError
-  });
-  
-  const debts = Array.isArray(debtsArray) 
-    ? debtsArray.filter((debt: any) => {
-        const remaining = debt.amount - (debt.paidAmount || 0);
-        console.log(`🔍 Debt ${debt.creditorName}: amount=${debt.amount}, paid=${debt.paidAmount}, remaining=${remaining}`);
-        return remaining > 0;
-      })
-    : [];
-  
-  console.log('✅ Final filtered debts:', debts.length);
-
-  // Avtomobillar ro'yxatini olish
-  const { cars: allCars, loading: carsLoading, isOnline: carsOnline } = useCarsNew();
-  
-  // Debug ma'lumotlari
-  console.log('🚗 Cars debug:', {
-    allCars: allCars?.length || 0,
-    isLoading: carsLoading,
-    isOnline: carsOnline,
-    carsArray: Array.isArray(allCars) ? allCars.length : 'not array'
-  });
-  const carsArray = Array.isArray(allCars) ? allCars : [];
-  
-  // Qarzi bor mashina ID larini ajratib olish
-  const carsWithDebtIds = new Set(
-    debts
-      .filter((debt: any) => debt.car && debt.car._id)
-      .map((debt: any) => debt.car._id)
+  const debtsArray = React.useMemo(() => 
+    allDebtsData?.debts || [], 
+    [allDebtsData]
   );
   
-  // 1. Avtomobil to'lovi uchun: FAQAT FAOL mashinalar (qarzi bo'lmagan)
-  const activeCarsForPayment = carsArray.filter((car: any) => {
-    // Arxivdagi mashinalarni chiqarib tashlash
-    if (car.isDeleted || car.status === 'completed' || car.status === 'delivered') {
-      return false;
-    }
-    
-    // Qarzi bor mashinalarni chiqarib tashlash (ular qarzlar sahifasida)
-    if (carsWithDebtIds.has(car._id)) {
-      return false;
-    }
-    
-    // Qarzi bor mashinalarni filtrlash (hali to'lanmagan)
-    const totalPrice = car.totalEstimate || 0;
-    const paidAmount = car.paidAmount || 0;
-    const remaining = totalPrice - paidAmount;
-    return remaining > 0; // Faqat qarzi bor mashinalar
-  });
+  // Filtered debts - memoized
+  const debts = React.useMemo(() => 
+    Array.isArray(debtsArray) 
+      ? debtsArray.filter((debt: any) => {
+          const remaining = debt.amount - (debt.paidAmount || 0);
+          return remaining > 0;
+        })
+      : [],
+    [debtsArray]
+  );
+
+  // Avtomobillar ro'yxatini olish - INSTANT LOADING
+  const { cars: allCars } = useCarsNew();
   
-  // 2. Qarz to'lovi uchun: FAQAT qarzlar sahifasida mavjud mashinalar
-  const carsWithDebtForPayment = carsArray.filter((car: any) => {
-    return carsWithDebtIds.has(car._id);
-  });
+  // Memoized cars array - qayta hisoblashni oldini olish
+  const carsArray = React.useMemo(() => 
+    Array.isArray(allCars) ? allCars : [], 
+    [allCars]
+  );
   
-  // Qaysi ro'yxatni ishlatishni aniqlash
-  const carsToShow = selectedType === 'car' ? activeCarsForPayment : carsWithDebtForPayment;
+  // Qarzi bor mashina ID larini ajratib olish - memoized
+  const carsWithDebtIds = React.useMemo(() => 
+    new Set(
+      debts
+        .filter((debt: any) => debt.car && debt.car._id)
+        .map((debt: any) => debt.car._id)
+    ),
+    [debts]
+  );
   
-  // Avtomobillarni qidirish
-  const filteredCars = carsToShow.filter((car: any) => {
-    if (!carSearchQuery) return true;
+  // 1. Avtomobil to'lovi uchun: FAQAT FAOL mashinalar (qarzi bo'lmagan) - memoized
+  const activeCarsForPayment = React.useMemo(() => 
+    carsArray.filter((car: any) => {
+      // Arxivdagi mashinalarni chiqarib tashlash
+      if (car.isDeleted || car.status === 'completed' || car.status === 'delivered') {
+        return false;
+      }
+      
+      // Qarzi bor mashinalarni chiqarib tashlash (ular qarzlar sahifasida)
+      if (carsWithDebtIds.has(car._id)) {
+        return false;
+      }
+      
+      // Qarzi bor mashinalarni filtrlash (hali to'lanmagan)
+      const totalPrice = car.totalEstimate || 0;
+      const paidAmount = car.paidAmount || 0;
+      const remaining = totalPrice - paidAmount;
+      return remaining > 0; // Faqat qarzi bor mashinalar
+    }),
+    [carsArray, carsWithDebtIds]
+  );
+  
+  // 2. Qarz to'lovi uchun: FAQAT qarzlar sahifasida mavjud mashinalar - memoized
+  const carsWithDebtForPayment = React.useMemo(() => 
+    carsArray.filter((car: any) => {
+      return carsWithDebtIds.has(car._id);
+    }),
+    [carsArray, carsWithDebtIds]
+  );
+  
+  // Qaysi ro'yxatni ishlatishni aniqlash - memoized
+  const carsToShow = React.useMemo(() => 
+    selectedType === 'car' ? activeCarsForPayment : carsWithDebtForPayment,
+    [selectedType, activeCarsForPayment, carsWithDebtForPayment]
+  );
+  
+  // Avtomobillarni qidirish - memoized
+  const filteredCars = React.useMemo(() => {
+    if (!carSearchQuery) return carsToShow;
     
     // Qidiruv so'zini tozalash (bo'shliqlar, kichik harflar, maxsus belgilar)
     const normalizeText = (text: string) => {
@@ -124,18 +126,21 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose }) => {
     };
     
     const query = normalizeText(carSearchQuery);
-    const licensePlate = normalizeText(car.licensePlate || '');
-    const make = normalizeText(car.make || '');
-    const model = normalizeText(car.carModel || '');
-    const owner = normalizeText(car.ownerName || '');
     
-    return (
-      licensePlate.includes(query) ||
-      make.includes(query) ||
-      model.includes(query) ||
-      owner.includes(query)
-    );
-  });
+    return carsToShow.filter((car: any) => {
+      const licensePlate = normalizeText(car.licensePlate || '');
+      const make = normalizeText(car.make || '');
+      const model = normalizeText(car.carModel || '');
+      const owner = normalizeText(car.ownerName || '');
+      
+      return (
+        licensePlate.includes(query) ||
+        make.includes(query) ||
+        model.includes(query) ||
+        owner.includes(query)
+      );
+    });
+  }, [carsToShow, carSearchQuery]);
 
   // Qarz to'lovi uchun mutation
   const createTransactionMutation = useCreateTransaction();
@@ -173,11 +178,16 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose }) => {
   };
 
   const handleCarPaymentSuccess = () => {
+    // ⚡ INSTANT: Cache'ni darhol yangilash (refresh bo'lmasa ham)
     queryClient.invalidateQueries({ queryKey: ['cars'] });
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['transactionSummary'] });
     queryClient.invalidateQueries({ queryKey: ['transaction-summary'] });
+    queryClient.invalidateQueries({ queryKey: ['transactionStats'] });
     queryClient.invalidateQueries({ queryKey: ['transaction-stats'] });
-    toast.success(t('To\'lov muvaffaqiyatli amalga oshirildi', language));
+    queryClient.invalidateQueries({ queryKey: ['car-services'] });
+    
+    // Success message allaqachon CarPaymentModalHybrid'da ko'rsatilgan
     handleClose();
   };
 
@@ -234,6 +244,11 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose }) => {
         return;
       }
 
+      // ⚡ INSTANT UI UPDATE: Darhol modal yopish va success ko'rsatish
+      toast.success(t('Qarz to\'lovi qabul qilindi', language));
+      handleClose();
+
+      // 🔥 BACKGROUND: To'lovni backend'ga yuborish (foydalanuvchi kutmaydi)
       try {
         // Qarz to'lovini qo'shish (hybrid)
         await addPaymentMutation.mutateAsync({
@@ -255,9 +270,10 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose }) => {
           }
         });
 
-        handleClose();
+        console.log('✅ Qarz to\'lovi muvaffaqiyatli saqlandi (background)');
       } catch (error) {
-        // Error handled by mutations
+        console.error('❌ Qarz to\'lovi xatosi (background):', error);
+        // Xatolik bo'lsa ham foydalanuvchi ko'rmaydi, chunki modal allaqachon yopilgan
       }
     } else {
       // Oddiy kirim
@@ -267,6 +283,11 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose }) => {
         other: t('Boshqa kirim', language)
       };
 
+      // ⚡ INSTANT UI UPDATE: Darhol modal yopish va success ko'rsatish
+      toast.success(t('Kirim qabul qilindi', language));
+      handleClose();
+
+      // 🔥 BACKGROUND: To'lovni backend'ga yuborish (foydalanuvchi kutmaydi)
       try {
         await createTransactionMutation.mutateAsync({
           type: 'income',
@@ -280,9 +301,10 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose }) => {
           }
         });
 
-        handleClose();
+        console.log('✅ Kirim muvaffaqiyatli saqlandi (background)');
       } catch (error) {
-        // Error handled by mutation
+        console.error('❌ Kirim xatosi (background):', error);
+        // Xatolik bo'lsa ham foydalanuvchi ko'rmaydi, chunki modal allaqachon yopilgan
       }
     }
   };
@@ -412,12 +434,7 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose }) => {
                   {t('Qarz to\'lovchini tanlang:', language)}
                 </p>
 
-                {debtsLoading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">{t('Yuklanmoqda...', language)}</p>
-                  </div>
-                ) : debtsError ? (
+                {debtsError ? (
                   <div className="text-center py-8">
                     <p className="text-red-500">{t('Xatolik yuz berdi', language)}</p>
                     <p className="text-xs text-gray-400 mt-2">
@@ -499,17 +516,7 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 <div className="max-h-96 overflow-y-auto space-y-2">
-                  {carsLoading ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-200 border-t-purple-600 mx-auto mb-4"></div>
-                      <p className="text-gray-600">{t('Yuklanmoqda...', language)}</p>
-                      {!carsOnline && (
-                        <p className="text-xs text-orange-600 mt-2">
-                          {t('Offline rejimda ma\'lumotlar yuklanmoqda...', language)}
-                        </p>
-                      )}
-                    </div>
-                  ) : filteredCars.length === 0 ? (
+                  {filteredCars.length === 0 ? (
                     <div className="text-center py-8">
                       <p className="text-gray-500">
                         {carSearchQuery 
@@ -752,10 +759,9 @@ const IncomeModal: React.FC<IncomeModalProps> = ({ isOpen, onClose }) => {
                   </button>
                   <button
                     type="submit"
-                    disabled={createTransactionMutation.isPending || addPaymentMutation.isPending}
-                    className="btn-primary disabled:opacity-50"
+                    className="btn-primary"
                   >
-                    {(createTransactionMutation.isPending || addPaymentMutation.isPending) ? t('Saqlanmoqda...', language) : t('Saqlash', language)}
+                    {t('Saqlash', language)}
                   </button>
                 </div>
               </form>

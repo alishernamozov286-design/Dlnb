@@ -323,38 +323,102 @@ export const getApprenticesWithStats = async (req: AuthRequest, res: Response) =
   try {
     const Task = require('../models/Task').default;
     
-    const apprentices = await User.find({ role: 'apprentice' }).select('-password').lean();
+    // Shogirtlarni olish
+    const apprentices = await User.find({ role: 'apprentice' })
+      .select('_id name username email phone percentage totalEarnings profileImage profession experience createdAt')
+      .lean()
+      .exec();
     
-    // Get task statistics for each apprentice
-    const apprenticesWithStats = await Promise.all(
-      apprentices.map(async (apprentice) => {
-        // Eski tizim (assignedTo) va yangi tizim (assignments) uchun vazifalarni qidirish
-        const tasks = await Task.find({
+    if (apprentices.length === 0) {
+      return res.json({ users: [] });
+    }
+    
+    const apprenticeIds = apprentices.map(a => a._id);
+    
+    // MongoDB Aggregation - super tez!
+    const taskStats = await Task.aggregate([
+      {
+        $match: {
           $or: [
-            { assignedTo: apprentice._id }, // Eski tizim
-            { 'assignments.apprentice': apprentice._id } // Yangi tizim
+            { assignedTo: { $in: apprenticeIds } },
+            { 'assignments.apprentice': { $in: apprenticeIds } }
           ]
-        });
-        
-        const stats = {
-          totalTasks: tasks.length,
-          completedTasks: tasks.filter((t: any) => t.status === 'completed' || t.status === 'approved').length,
-          approvedTasks: tasks.filter((t: any) => t.status === 'approved').length,
-          inProgressTasks: tasks.filter((t: any) => t.status === 'in-progress').length,
-          assignedTasks: tasks.filter((t: any) => t.status === 'assigned').length,
-          rejectedTasks: tasks.filter((t: any) => t.status === 'rejected').length,
-          performance: tasks.length > 0 
-            ? Math.round((tasks.filter((t: any) => t.status === 'approved').length / tasks.length) * 100)
-            : 0,
-          awards: tasks.filter((t: any) => t.status === 'approved').length // Mukofotlar = tasdiqlangan vazifalar
-        };
-        
-        return {
-          ...apprentice,
-          stats
-        };
-      })
-    );
+        }
+      },
+      {
+        $project: {
+          apprenticeId: {
+            $cond: {
+              if: { $ifNull: ['$assignedTo', false] },
+              then: '$assignedTo',
+              else: { $arrayElemAt: ['$assignments.apprentice', 0] }
+            }
+          },
+          status: 1
+        }
+      },
+      {
+        $group: {
+          _id: '$apprenticeId',
+          totalTasks: { $sum: 1 },
+          approvedTasks: {
+            $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] }
+          },
+          completedTasks: {
+            $sum: { 
+              $cond: [
+                { $in: ['$status', ['completed', 'approved']] }, 
+                1, 
+                0
+              ] 
+            }
+          },
+          inProgressTasks: {
+            $sum: { $cond: [{ $eq: ['$status', 'in-progress'] }, 1, 0] }
+          },
+          assignedTasks: {
+            $sum: { $cond: [{ $eq: ['$status', 'assigned'] }, 1, 0] }
+          },
+          rejectedTasks: {
+            $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] }
+          }
+        }
+      }
+    ]).exec();
+    
+    // Map'ga o'tkazish - O(1) qidiruv
+    const statsMap = new Map();
+    for (const stat of taskStats) {
+      const performance = stat.totalTasks > 0 
+        ? Math.round((stat.approvedTasks / stat.totalTasks) * 100)
+        : 0;
+      
+      statsMap.set(stat._id.toString(), {
+        totalTasks: stat.totalTasks,
+        completedTasks: stat.completedTasks,
+        approvedTasks: stat.approvedTasks,
+        inProgressTasks: stat.inProgressTasks,
+        assignedTasks: stat.assignedTasks,
+        rejectedTasks: stat.rejectedTasks,
+        performance,
+        awards: stat.approvedTasks
+      });
+    }
+    
+    // Shogirtlar bilan birlashtirish
+    const apprenticesWithStats = apprentices.map((apprentice) => ({
+      ...apprentice,
+      stats: statsMap.get(apprentice._id.toString()) || {
+        totalTasks: 0,
+        completedTasks: 0,
+        approvedTasks: 0,
+        inProgressTasks: 0,
+        assignedTasks: 0,
+        rejectedTasks: 0,
+        performance: 0,
+        awards: 0
+      }
+    }));
     
     res.json({ users: apprenticesWithStats });
   } catch (error: any) {

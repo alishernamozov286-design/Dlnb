@@ -79,7 +79,8 @@ const taskSchema = new Schema<ITask>({
   assignedTo: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: false // Yangi tizimda majburiy emas
+    required: false, // Yangi tizimda majburiy emas
+    index: true // Tez qidirish uchun indeks
   },
   assignments: {
     type: [taskAssignmentSchema],
@@ -112,7 +113,8 @@ const taskSchema = new Schema<ITask>({
   status: {
     type: String,
     enum: ['assigned', 'in-progress', 'completed', 'approved', 'rejected'],
-    default: 'assigned'
+    default: 'assigned',
+    index: true // Tez qidirish uchun indeks
   },
   dueDate: {
     type: Date,
@@ -165,5 +167,9 @@ const taskSchema = new Schema<ITask>({
 }, {
   timestamps: true
 });
+
+// Compound indekslar - tez qidirish uchun
+taskSchema.index({ assignedTo: 1, status: 1 });
+taskSchema.index({ 'assignments.apprentice': 1, status: 1 });
 
 export default mongoose.model<ITask>('Task', taskSchema);

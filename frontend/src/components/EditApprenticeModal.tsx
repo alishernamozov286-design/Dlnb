@@ -12,9 +12,10 @@ interface EditApprenticeModalProps {
   onClose: () => void;
   apprentice: UserType | null;
   onUpdate: () => void;
+  onUpdateOptimistic?: (apprenticeId: string, updateData: any) => Promise<boolean>;
 }
 
-const EditApprenticeModal: React.FC<EditApprenticeModalProps> = ({ isOpen, onClose, apprentice, onUpdate }) => {
+const EditApprenticeModal: React.FC<EditApprenticeModalProps> = ({ isOpen, onClose, apprentice, onUpdate, onUpdateOptimistic }) => {
   const [formData, setFormData] = useState({
     name: '',
     username: '',
@@ -88,12 +89,13 @@ const EditApprenticeModal: React.FC<EditApprenticeModalProps> = ({ isOpen, onClo
       return;
     }
 
-    setIsLoading(true);
     try {
       // Upload image first if selected
       let profileImageUrl = formData.profileImage;
       if (imageFile) {
+        setIsUploadingImage(true);
         profileImageUrl = await uploadImage();
+        setIsUploadingImage(false);
       }
 
       const updateData: any = {
@@ -106,16 +108,30 @@ const EditApprenticeModal: React.FC<EditApprenticeModalProps> = ({ isOpen, onClo
         profileImage: profileImageUrl
       };
 
-      const response = await api.patch(`/auth/users/${apprentice._id}`, updateData);
-
-      if (response.data) {
-        onUpdate();
+      // Agar onUpdateOptimistic prop berilgan bo'lsa, uni ishlatish (optimistic update)
+      if (onUpdateOptimistic) {
+        // INSTANT: Darhol modal yopish va UI'ni yangilash
         onClose();
+        
+        // Background'da yangilash
+        await onUpdateOptimistic(apprentice._id, updateData);
+        onUpdate();
+      } else {
+        // Eski usul - loading ko'rsatish
+        setIsLoading(true);
+        const response = await api.patch(`/auth/users/${apprentice._id}`, updateData);
+        
+        if (response.data) {
+          onUpdate();
+          onClose();
+        }
+        setIsLoading(false);
       }
     } catch (error: any) {
       console.error('Error updating apprentice:', error);
-      alert(error.response?.data?.message || t('Xatolik yuz berdi', language));
-    } finally {
+      if (!onUpdateOptimistic) {
+        alert(error.response?.data?.message || t('Xatolik yuz berdi', language));
+      }
       setIsLoading(false);
     }
   };

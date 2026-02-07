@@ -1,18 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { X, DollarSign, User, Phone, Calendar, FileText } from 'lucide-react';
-import { Debt } from '@/types';
-import { useUpdateDebt } from '@/hooks/useDebts';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { formatNumber, parseFormattedNumber } from '@/lib/utils';
 import { t } from '@/lib/transliteration';
+import toast from 'react-hot-toast';
+
+type Debt = {
+  _id: string;
+  creditorName: string;
+  creditorPhone?: string;
+  amount: number;
+  paidAmount: number;
+  type: 'receivable' | 'payable';
+  status: 'pending' | 'partial' | 'paid';
+  dueDate?: string;
+  description?: string;
+  paymentHistory?: Array<{
+    amount: number;
+    date: string;
+    notes?: string;
+  }>;
+  createdBy?: {
+    _id: string;
+    name: string;
+    username: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
 
 interface EditDebtModalProps {
   isOpen: boolean;
   onClose: () => void;
   debt: Debt;
+  onUpdate: (id: string, data: any) => Promise<any>;
 }
 
-const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, onClose, debt }) => {
+const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, onClose, debt, onUpdate }) => {
   const [formData, setFormData] = useState({
     creditorName: '',
     creditorPhone: '',
@@ -22,6 +46,7 @@ const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, onClose, debt }) 
     description: ''
   });
   const [amountDisplay, setAmountDisplay] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // localStorage'dan tilni o'qish
   const language = React.useMemo<'latin' | 'cyrillic'>(() => {
@@ -29,7 +54,6 @@ const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, onClose, debt }) 
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   }, []);
 
-  const updateDebtMutation = useUpdateDebt();
   useBodyScrollLock(isOpen);
 
   useEffect(() => {
@@ -62,18 +86,22 @@ const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, onClose, debt }) 
     e.preventDefault();
     
     if (!formData.creditorName || formData.amount <= 0) {
-      alert(t("Barcha majburiy maydonlarni to'ldiring", language));
+      toast.error(t("Barcha majburiy maydonlarni to'ldiring", language));
       return;
     }
 
+    setIsSubmitting(true);
+    
     try {
-      await updateDebtMutation.mutateAsync({
-        id: debt._id,
-        data: formData
-      });
+      // ⚡ INSTANT: Modal darhol yopiladi
       onClose();
-    } catch (error) {
-      console.error('Error updating debt:', error);
+      
+      // Background'da yangilash
+      await onUpdate(debt._id, formData);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || t('Xatolik yuz berdi', language));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -231,10 +259,10 @@ const EditDebtModal: React.FC<EditDebtModalProps> = ({ isOpen, onClose, debt }) 
           <button
             type="submit"
             onClick={handleSubmit}
-            disabled={updateDebtMutation.isPending}
+            disabled={isSubmitting}
             className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow"
           >
-            {updateDebtMutation.isPending ? t('Saqlanmoqda...', language) : t('Saqlash', language)}
+            {isSubmitting ? t('Saqlanmoqda...', language) : t('Saqlash', language)}
           </button>
         </div>
       </div>

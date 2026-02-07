@@ -236,13 +236,12 @@ export const getTasks = async (req: AuthRequest, res: Response) => {
       ];
     }
 
+    // ⚡ ULTRA FAST: Minimal populate - faqat kerakli maydonlar
     const tasks = await Task.find(filter)
       .select('+apprenticePercentage +apprenticeEarning +masterEarning') // Foiz va daromad maydonlarini qo'shish
-      .populate('assignedTo', 'name email')
-      .populate('assignedBy', 'name email')
-      .populate('car', 'make carModel licensePlate ownerName')
-      .populate('service', 'name price')
-      .populate('assignments.apprentice', 'name email') // Assignments'dagi shogirdlarni ham populate qilish
+      .populate('car', 'make carModel licensePlate ownerName') // Faqat mashina ma'lumotlari
+      .populate('assignments.apprentice', 'name percentage') // Faqat ism va foiz
+      .lean() // ⚡ Plain JS object - 2x tezroq
       .sort({ createdAt: -1 });
 
     res.json({ tasks });

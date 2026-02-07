@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Calendar, Phone, Car, User } from 'lucide-react';
-import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { t } from '@/lib/transliteration';
 
 interface CreateBookingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCreate: (bookingData: any) => Promise<any>;
 }
 
-const CreateBookingModal: React.FC<CreateBookingModalProps> = ({ isOpen, onClose }) => {
+const CreateBookingModal: React.FC<CreateBookingModalProps> = ({ isOpen, onClose, onCreate }) => {
   const [language] = useState<'latin' | 'cyrillic'>(() => {
     const savedLanguage = localStorage.getItem('language');
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
@@ -24,25 +23,9 @@ const CreateBookingModal: React.FC<CreateBookingModalProps> = ({ isOpen, onClose
     birthDate: '', // Tug'ilgan kun
   });
 
-  const queryClient = useQueryClient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const createMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const response = await api.post('/bookings', data);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['booking-stats'] });
-      toast.success(t('Bron muvaffaqiyatli yaratildi', language));
-      onClose();
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || t('Xatolik yuz berdi', language));
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.customerName || !formData.phoneNumber || !formData.licensePlate || !formData.bookingDate) {
@@ -50,7 +33,28 @@ const CreateBookingModal: React.FC<CreateBookingModalProps> = ({ isOpen, onClose
       return;
     }
 
-    createMutation.mutate(formData);
+    setIsSubmitting(true);
+    
+    try {
+      // ⚡ INSTANT: Modal darhol yopiladi
+      onClose();
+      
+      // ⚡ INSTANT: Form tozalanadi
+      setFormData({
+        customerName: '',
+        phoneNumber: '',
+        licensePlate: '',
+        bookingDate: '',
+        birthDate: '',
+      });
+      
+      // Background'da yaratish
+      await onCreate(formData);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || t('Xatolik yuz berdi', language));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -221,10 +225,10 @@ const CreateBookingModal: React.FC<CreateBookingModalProps> = ({ isOpen, onClose
               </button>
               <button
                 type="submit"
-                disabled={createMutation.isPending}
+                disabled={isSubmitting}
                 className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-medium disabled:opacity-50"
               >
-                {createMutation.isPending ? t('Saqlanmoqda...', language) : t('Saqlash', language)}
+                {isSubmitting ? t('Saqlanmoqda...', language) : t('Saqlash', language)}
               </button>
             </div>
           </form>

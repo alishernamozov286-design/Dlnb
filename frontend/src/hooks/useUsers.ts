@@ -7,18 +7,20 @@ import { useState, useEffect, useCallback } from 'react';
 
 export const useUsers = (role?: string) => {
   const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
   const networkManager = NetworkManager.getInstance();
 
   const loadUsers = useCallback(async () => {
     try {
-      setLoading(true);
       const networkStatus = networkManager.getStatus();
       setIsOnline(networkStatus.isOnline);
 
+      // Instant loading - IndexedDB dan darhol yuklash
+      const offlineUsers = await usersRepository.getAll();
+      setUsers(role ? offlineUsers.filter(u => u.role === role) : offlineUsers);
+
       if (networkStatus.isOnline) {
-        // Online: API dan olish va saqlash
+        // Background'da API dan yangilash
         try {
           const params = new URLSearchParams();
           if (role) params.append('role', role);
@@ -34,20 +36,11 @@ export const useUsers = (role?: string) => {
           setUsers(fetchedUsers);
         } catch (error) {
           console.error('Online userlarni yuklashda xatolik:', error);
-          // Xatolik bo'lsa, offline dan yuklash
-          const offlineUsers = await usersRepository.getAll();
-          setUsers(role ? offlineUsers.filter(u => u.role === role) : offlineUsers);
         }
-      } else {
-        // Offline: IndexedDB dan olish
-        const offlineUsers = await usersRepository.getAll();
-        setUsers(role ? offlineUsers.filter(u => u.role === role) : offlineUsers);
       }
     } catch (error) {
       console.error('Userlarni yuklashda xatolik:', error);
       setUsers([]);
-    } finally {
-      setLoading(false);
     }
   }, [role, networkManager]);
 
@@ -67,7 +60,7 @@ export const useUsers = (role?: string) => {
 
   return {
     data: { users },
-    isLoading: loading,
+    isLoading: false, // Always false - instant loading
     isOnline,
     refetch: loadUsers
   };
@@ -80,6 +73,10 @@ export const useApprentices = () => {
       const response = await api.get('/auth/apprentices/stats');
       return response.data;
     },
+    staleTime: 60000, // 1 daqiqa - ma'lumotlar 1 daqiqa yangi hisoblanadi
+    gcTime: 300000, // 5 daqiqa cache'da saqlanadi
+    refetchOnWindowFocus: false, // Window focus'da qayta yuklamaslik
+    refetchOnMount: false, // Mount'da qayta yuklamaslik (agar cache bor bo'lsa)
   });
 };
 

@@ -38,8 +38,8 @@ const MasterCashier: React.FC = memo(() => {
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   }, []);
 
-  // Get date range for filter
-  const getDateRange = () => {
+  // Get date range for filter - useMemo bilan optimizatsiya
+  const dateRange = useMemo(() => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
@@ -64,47 +64,56 @@ const MasterCashier: React.FC = memo(() => {
       default:
         return {};
     }
-  };
+  }, [dateFilter]);
 
-  const dateRange = getDateRange();
-  const { data: transactionsData, isLoading: transactionsLoading } = useTransactions({
+  // React Query hooks - cache'dan instant yuklash
+  const { data: transactionsData } = useTransactions({
     type: filter === 'all' ? undefined : filter,
     ...dateRange
   });
-  const { data: summaryData, isLoading: summaryLoading } = useTransactionSummary();
+  const { data: summaryData } = useTransactionSummary();
+  
+  // Memoized data - qayta hisoblashni oldini olish
+  const transactions = useMemo(() => 
+    (transactionsData as TransactionResponse)?.transactions || [], 
+    [transactionsData]
+  );
+  
+  const summary = useMemo(() => 
+    summaryData?.summary || {
+      totalIncome: 0,
+      totalExpense: 0,
+      balance: 0,
+      incomeCount: 0,
+      expenseCount: 0,
+      incomeCash: 0,
+      incomeCard: 0,
+      expenseCash: 0,
+      expenseCard: 0,
+      balanceCash: 0,
+      balanceCard: 0
+    }, 
+    [summaryData]
+  );
 
-  const transactions = (transactionsData as TransactionResponse)?.transactions || [];
-  const summary = summaryData?.summary || {
-    totalIncome: 0,
-    totalExpense: 0,
-    balance: 0,
-    incomeCount: 0,
-    expenseCount: 0,
-    incomeCash: 0,
-    incomeCard: 0,
-    expenseCash: 0,
-    expenseCard: 0,
-    balanceCash: 0,
-    balanceCard: 0
-  };
-
-  const getPaymentMethodIcon = (method: string) => {
+  // Memoized helper functions - qayta yaratilishni oldini olish
+  const getPaymentMethodIcon = useMemo(() => (method: string) => {
     switch (method) {
       case 'cash': return <Wallet className="h-4 w-4" />;
       case 'card': return <CreditCard className="h-4 w-4" />;
       case 'click': return <Smartphone className="h-4 w-4" />;
       default: return <DollarSign className="h-4 w-4" />;
     }
-  };
+  }, []);
 
-  const getPaymentMethodText = (method: string) => {
+  const getPaymentMethodText = useMemo(() => (method: string) => {
     switch (method) {
       case 'cash': return t('Naqd', language);
       case 'card': return t('Karta', language);
       case 'click': return 'Click';
       default: return method;
     }
-  };
+  }, [language]);
 
   const handleMonthlyReset = async () => {
     try {
@@ -197,7 +206,7 @@ const MasterCashier: React.FC = memo(() => {
               <div className="mb-3">
                 <p className="text-xs text-green-600 mb-1">{t('Umumiy', language)}</p>
                 <div className="text-2xl font-bold text-green-900">
-                  {summaryLoading ? '...' : formatCurrency(summary.totalIncome, language)}
+                  {formatCurrency(summary.totalIncome, language)}
                 </div>
               </div>
               
@@ -205,14 +214,14 @@ const MasterCashier: React.FC = memo(() => {
                 <div className="bg-white/60 rounded-lg p-2">
                   <p className="text-xs text-green-600 mb-0.5">{t('Naqd', language)}</p>
                   <div className="text-sm font-bold text-green-900">
-                    {summaryLoading ? '...' : formatCurrency(summary.incomeCash || 0, language)}
+                    {formatCurrency(summary.incomeCash || 0, language)}
                   </div>
                 </div>
                 
                 <div className="bg-white/60 rounded-lg p-2">
                   <p className="text-xs text-green-600 mb-0.5">{t('Karta', language)}</p>
                   <div className="text-sm font-bold text-green-900">
-                    {summaryLoading ? '...' : formatCurrency(summary.incomeCard || 0, language)}
+                    {formatCurrency(summary.incomeCard || 0, language)}
                   </div>
                 </div>
               </div>
@@ -236,7 +245,7 @@ const MasterCashier: React.FC = memo(() => {
               <div className="mb-3">
                 <p className="text-xs text-red-600 mb-1">{t('Umumiy', language)}</p>
                 <div className="text-2xl font-bold text-red-900">
-                  {summaryLoading ? '...' : formatCurrency(summary.totalExpense, language)}
+                  {formatCurrency(summary.totalExpense, language)}
                 </div>
               </div>
               
@@ -244,14 +253,14 @@ const MasterCashier: React.FC = memo(() => {
                 <div className="bg-white/60 rounded-lg p-2">
                   <p className="text-xs text-red-600 mb-0.5">{t('Naqd', language)}</p>
                   <div className="text-sm font-bold text-red-900">
-                    {summaryLoading ? '...' : formatCurrency(summary.expenseCash || 0, language)}
+                    {formatCurrency(summary.expenseCash || 0, language)}
                   </div>
                 </div>
                 
                 <div className="bg-white/60 rounded-lg p-2">
                   <p className="text-xs text-red-600 mb-0.5">{t('Karta', language)}</p>
                   <div className="text-sm font-bold text-red-900">
-                    {summaryLoading ? '...' : formatCurrency(summary.expenseCard || 0, language)}
+                    {formatCurrency(summary.expenseCard || 0, language)}
                   </div>
                 </div>
               </div>
@@ -275,7 +284,7 @@ const MasterCashier: React.FC = memo(() => {
               <div className="mb-3">
                 <p className="text-xs text-blue-600 mb-1">{t('Umumiy', language)}</p>
                 <div className={`text-2xl font-bold ${summary.balance >= 0 ? 'text-green-900' : 'text-red-900'}`}>
-                  {summaryLoading ? '...' : formatCurrency(summary.balance, language)}
+                  {formatCurrency(summary.balance, language)}
                 </div>
               </div>
               
@@ -283,14 +292,14 @@ const MasterCashier: React.FC = memo(() => {
                 <div className="bg-white/60 rounded-lg p-2">
                   <p className="text-xs text-blue-600 mb-0.5">{t('Naqd', language)}</p>
                   <div className={`text-sm font-bold ${(summary.balanceCash || 0) >= 0 ? 'text-green-900' : 'text-red-900'}`}>
-                    {summaryLoading ? '...' : formatCurrency(summary.balanceCash || 0, language)}
+                    {formatCurrency(summary.balanceCash || 0, language)}
                   </div>
                 </div>
                 
                 <div className="bg-white/60 rounded-lg p-2">
                   <p className="text-xs text-blue-600 mb-0.5">{t('Karta', language)}</p>
                   <div className={`text-sm font-bold ${(summary.balanceCard || 0) >= 0 ? 'text-green-900' : 'text-red-900'}`}>
-                    {summaryLoading ? '...' : formatCurrency(summary.balanceCard || 0, language)}
+                    {formatCurrency(summary.balanceCard || 0, language)}
                   </div>
                 </div>
               </div>
@@ -410,15 +419,7 @@ const MasterCashier: React.FC = memo(() => {
 
           {/* Transactions List - Enhanced */}
           <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-            {transactionsLoading ? (
-              <div className="text-center py-12">
-                <div className="relative mx-auto w-16 h-16 mb-4">
-                  <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
-                  <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-                </div>
-                <p className="text-base text-gray-600 font-medium">{t('Yuklanmoqda...', language)}</p>
-              </div>
-            ) : transactions.length === 0 ? (
+            {transactions.length === 0 ? (
               <div className="text-center py-12">
                 <div className="relative inline-block mb-4">
                   <div className="absolute inset-0 bg-gray-200 rounded-full blur-xl opacity-50"></div>

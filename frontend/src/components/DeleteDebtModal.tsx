@@ -1,19 +1,43 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X, AlertTriangle, DollarSign } from 'lucide-react';
-import { Debt } from '@/types';
-import { useDeleteDebt } from '@/hooks/useDebts';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { formatCurrency } from '@/lib/utils';
 import { t } from '@/lib/transliteration';
+import toast from 'react-hot-toast';
+
+type Debt = {
+  _id: string;
+  creditorName: string;
+  creditorPhone?: string;
+  amount: number;
+  paidAmount: number;
+  type: 'receivable' | 'payable';
+  status: 'pending' | 'partial' | 'paid';
+  dueDate?: string;
+  description?: string;
+  paymentHistory?: Array<{
+    amount: number;
+    date: string;
+    notes?: string;
+  }>;
+  createdBy?: {
+    _id: string;
+    name: string;
+    username: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
 
 interface DeleteDebtModalProps {
   isOpen: boolean;
   onClose: () => void;
   debt: Debt;
+  onDelete: (id: string) => Promise<any>;
 }
 
-const DeleteDebtModal: React.FC<DeleteDebtModalProps> = ({ isOpen, onClose, debt }) => {
-  const deleteDebtMutation = useDeleteDebt();
+const DeleteDebtModal: React.FC<DeleteDebtModalProps> = ({ isOpen, onClose, debt, onDelete }) => {
+  const [isDeleting, setIsDeleting] = useState(false);
   useBodyScrollLock(isOpen);
 
   // localStorage'dan tilni o'qish
@@ -23,11 +47,18 @@ const DeleteDebtModal: React.FC<DeleteDebtModalProps> = ({ isOpen, onClose, debt
   }, []);
 
   const handleDelete = async () => {
+    setIsDeleting(true);
+    
     try {
-      await deleteDebtMutation.mutateAsync(debt._id);
+      // ⚡ INSTANT: Modal darhol yopiladi
       onClose();
-    } catch (error) {
-      console.error('Error deleting debt:', error);
+      
+      // Background'da o'chirish
+      await onDelete(debt._id);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || t('Xatolik yuz berdi', language));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -112,17 +143,17 @@ const DeleteDebtModal: React.FC<DeleteDebtModalProps> = ({ isOpen, onClose, debt
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-end space-x-3">
           <button
             onClick={onClose}
-            disabled={deleteDebtMutation.isPending}
+            disabled={isDeleting}
             className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-all disabled:opacity-50"
           >
             {t('Bekor qilish', language)}
           </button>
           <button
             onClick={handleDelete}
-            disabled={deleteDebtMutation.isPending}
+            disabled={isDeleting}
             className="px-5 py-2.5 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow"
           >
-            {deleteDebtMutation.isPending ? t("O'chirilmoqda...", language) : t("Ha, o'chirish", language)}
+            {isDeleting ? t("O'chirilmoqda...", language) : t("Ha, o'chirish", language)}
           </button>
         </div>
       </div>
