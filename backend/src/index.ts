@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import dotenv from 'dotenv';
@@ -86,7 +86,7 @@ app.use(cors(corsOptions));
 
 // Compression middleware - JSON response'larni siqish (gzip)
 app.use(compression({
-  filter: (req, res) => {
+  filter: (req: Request, res: Response) => {
     if (req.headers['x-no-compression']) {
       return false;
     }
