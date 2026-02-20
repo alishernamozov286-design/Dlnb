@@ -37,10 +37,44 @@ const MasterCashier: React.FC = memo(() => {
   const [userStatsType, setUserStatsType] = useState<'income' | 'expense' | 'balance'>('income');
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
+  const [currency, setCurrency] = useState<'UZS' | 'USD'>('UZS'); // Currency toggle state
+  const [usdRate, setUsdRate] = useState<number>(12700); // Dollar kursi (dinamik)
+  const [isLoadingRate, setIsLoadingRate] = useState(false);
 
   const language = useMemo<'latin' | 'cyrillic'>(() => {
     const savedLanguage = localStorage.getItem('language');
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
+  }, []);
+
+  // Dollar kursini olish (CBU API)
+  React.useEffect(() => {
+    const fetchUsdRate = async () => {
+      try {
+        setIsLoadingRate(true);
+        // O'zbekiston Markaziy Banki API
+        const response = await fetch('https://cbu.uz/uz/arkhiv-kursov-valyut/json/');
+        const data = await response.json();
+        
+        // USD kursini topish (kod: 840)
+        const usdData = data.find((item: any) => item.Ccy === 'USD');
+        if (usdData) {
+          setUsdRate(parseFloat(usdData.Rate));
+          console.log('Dollar kursi yangilandi:', usdData.Rate);
+        }
+      } catch (error) {
+        console.error('Dollar kursini olishda xatolik:', error);
+        // Xatolik bo'lsa, default qiymat ishlatiladi (12700)
+      } finally {
+        setIsLoadingRate(false);
+      }
+    };
+
+    fetchUsdRate();
+    
+    // Har 1 soatda bir marta yangilanadi
+    const interval = setInterval(fetchUsdRate, 60 * 60 * 1000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Get date range for filter - useMemo bilan optimizatsiya
@@ -143,6 +177,23 @@ const MasterCashier: React.FC = memo(() => {
       default: return method;
     }
   }, [language]);
+
+  // Currency conversion helper
+  const convertCurrency = (amount: number) => {
+    if (currency === 'USD') {
+      return amount / usdRate;
+    }
+    return amount;
+  };
+
+  // Format currency with symbol
+  const formatWithCurrency = (amount: number) => {
+    const converted = convertCurrency(amount);
+    if (currency === 'USD') {
+      return `$${converted.toFixed(2)}`;
+    }
+    return formatCurrency(amount, language);
+  };
 
   const handleMonthlyReset = async () => {
     try {
@@ -275,6 +326,56 @@ const MasterCashier: React.FC = memo(() => {
           {/* Stats Cards - Premium Design */}
           <div className="relative z-10 px-6 sm:px-8 lg:px-10 pb-6 sm:pb-8 lg:pb-10">
           
+          {/* Currency Toggle - Yangi qo'shildi */}
+          <div className="flex justify-end mb-3">
+            <div className="flex flex-col items-end gap-1">
+              {/* Kurs ko'rsatkichi */}
+              <div className={`text-xs font-medium ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                {isLoadingRate ? (
+                  <span className="animate-pulse">{t('Yuklanmoqda...', language)}</span>
+                ) : (
+                  <span>1 USD = {usdRate.toLocaleString('uz-UZ')} {t('so\'m', language)}</span>
+                )}
+              </div>
+              
+              {/* Toggle buttons */}
+              <div className={`inline-flex rounded-lg p-0.5 shadow-md ${
+                isDarkMode ? 'bg-gray-800 border border-red-900/30' : 'bg-white border border-gray-200'
+              }`}>
+                <button
+                  onClick={() => setCurrency('UZS')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all duration-300 ${
+                    currency === 'UZS'
+                      ? isDarkMode
+                        ? 'bg-gradient-to-r from-red-600 via-red-700 to-gray-900 text-white shadow-lg scale-105'
+                        : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg scale-105'
+                      : isDarkMode
+                        ? 'text-gray-400 hover:text-white'
+                        : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  UZS (so'm)
+                </button>
+                <button
+                  onClick={() => setCurrency('USD')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all duration-300 ${
+                    currency === 'USD'
+                      ? isDarkMode
+                        ? 'bg-gradient-to-r from-red-600 via-red-700 to-gray-900 text-white shadow-lg scale-105'
+                        : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg scale-105'
+                      : isDarkMode
+                        ? 'text-gray-400 hover:text-white'
+                        : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  USD ($)
+                </button>
+              </div>
+            </div>
+          </div>
+          
           {/* Action Buttons - Faqat mobil uchun birinchi (lg:hidden) */}
           <div className="grid grid-cols-2 gap-3 mb-5 lg:hidden">
             {/* KIRIM Button */}
@@ -342,7 +443,7 @@ const MasterCashier: React.FC = memo(() => {
                 <div className={`text-2xl font-bold ${
                   isDarkMode ? 'text-green-300' : 'text-green-900'
                 }`}>
-                  {formatCurrency(summary.total?.income.total || summary.totalIncome, language)}
+                  {formatWithCurrency(summary.total?.income.total || summary.totalIncome)}
                 </div>
               </div>
               
@@ -356,7 +457,7 @@ const MasterCashier: React.FC = memo(() => {
                   <div className={`text-sm font-bold ${
                     isDarkMode ? 'text-green-300' : 'text-green-900'
                   }`}>
-                    {formatCurrency(summary.total?.income.cash || summary.incomeCash || 0, language)}
+                    {formatWithCurrency(summary.total?.income.cash || summary.incomeCash || 0)}
                   </div>
                 </div>
                 
@@ -369,7 +470,7 @@ const MasterCashier: React.FC = memo(() => {
                   <div className={`text-sm font-bold ${
                     isDarkMode ? 'text-green-300' : 'text-green-900'
                   }`}>
-                    {formatCurrency(summary.total?.income.card || summary.incomeCard || 0, language)}
+                    {formatWithCurrency(summary.total?.income.card || summary.incomeCard || 0)}
                   </div>
                 </div>
               </div>
@@ -415,7 +516,7 @@ const MasterCashier: React.FC = memo(() => {
                 <div className={`text-2xl font-bold ${
                   isDarkMode ? 'text-red-300' : 'text-red-900'
                 }`}>
-                  {formatCurrency(summary.total?.expense.total || summary.totalExpense, language)}
+                  {formatWithCurrency(summary.total?.expense.total || summary.totalExpense)}
                 </div>
               </div>
               
@@ -429,7 +530,7 @@ const MasterCashier: React.FC = memo(() => {
                   <div className={`text-sm font-bold ${
                     isDarkMode ? 'text-red-300' : 'text-red-900'
                   }`}>
-                    {formatCurrency(summary.total?.expense.cash || summary.expenseCash || 0, language)}
+                    {formatWithCurrency(summary.total?.expense.cash || summary.expenseCash || 0)}
                   </div>
                 </div>
                 
@@ -442,7 +543,7 @@ const MasterCashier: React.FC = memo(() => {
                   <div className={`text-sm font-bold ${
                     isDarkMode ? 'text-red-300' : 'text-red-900'
                   }`}>
-                    {formatCurrency(summary.total?.expense.card || summary.expenseCard || 0, language)}
+                    {formatWithCurrency(summary.total?.expense.card || summary.expenseCard || 0)}
                   </div>
                 </div>
               </div>
@@ -490,7 +591,7 @@ const MasterCashier: React.FC = memo(() => {
                     ? isDarkMode ? 'text-green-400' : 'text-green-900'
                     : isDarkMode ? 'text-red-400' : 'text-red-900'
                 }`}>
-                  {formatCurrency(summary.total?.balance.total || summary.balance, language)}
+                  {formatWithCurrency(summary.total?.balance.total || summary.balance)}
                 </div>
               </div>
               
@@ -506,7 +607,7 @@ const MasterCashier: React.FC = memo(() => {
                       ? isDarkMode ? 'text-green-400' : 'text-green-900'
                       : isDarkMode ? 'text-red-400' : 'text-red-900'
                   }`}>
-                    {formatCurrency(summary.total?.balance.cash || summary.balanceCash || 0, language)}
+                    {formatWithCurrency(summary.total?.balance.cash || summary.balanceCash || 0)}
                   </div>
                 </div>
                 
@@ -521,7 +622,7 @@ const MasterCashier: React.FC = memo(() => {
                       ? isDarkMode ? 'text-green-400' : 'text-green-900'
                       : isDarkMode ? 'text-red-400' : 'text-red-900'
                   }`}>
-                    {formatCurrency(summary.total?.balance.card || summary.balanceCard || 0, language)}
+                    {formatWithCurrency(summary.total?.balance.card || summary.balanceCard || 0)}
                   </div>
                 </div>
               </div>
@@ -852,6 +953,8 @@ const MasterCashier: React.FC = memo(() => {
         userStats={summary.byUser || []}
         currentUserId={currentUser?._id}
         language={language}
+        currency={currency}
+        usdRate={usdRate}
       />
     </div>
   );

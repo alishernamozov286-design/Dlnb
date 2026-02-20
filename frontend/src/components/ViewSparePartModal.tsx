@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Package, DollarSign, TrendingUp, Calendar, Edit, Trash2 } from 'lucide-react';
+import { X, Package, DollarSign, TrendingUp, Calendar, Edit, Trash2, Settings } from 'lucide-react';
 import { t } from '@/lib/transliteration';
 import { useTheme } from '@/contexts/ThemeContext';
 import API_CONFIG from '@/config/api.config';
@@ -50,6 +50,8 @@ interface ViewSparePartModalProps {
   sparePart: SparePart;
   onEdit?: () => void;
   onDelete?: () => void;
+  currency?: 'UZS' | 'USD';
+  usdRate?: number;
 }
 
 const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({ 
@@ -57,13 +59,32 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
   onClose, 
   sparePart, 
   onEdit, 
-  onDelete 
+  onDelete,
+  currency = 'UZS',
+  usdRate = 12700
 }) => {
   const { isDarkMode } = useTheme();
   const language = React.useMemo<'latin' | 'cyrillic'>(() => {
     const savedLanguage = localStorage.getItem('language');
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   }, []);
+
+  // Currency conversion helper
+  const convertCurrency = (amount: number) => {
+    if (currency === 'USD') {
+      return amount / usdRate;
+    }
+    return amount;
+  };
+
+  // Format currency with symbol
+  const formatWithCurrency = (amount: number) => {
+    const converted = convertCurrency(amount);
+    if (currency === 'USD') {
+      return `$${converted.toFixed(2)}`;
+    }
+    return amount.toLocaleString() + ' ' + t("so'm", language);
+  };
 
   if (!isOpen) return null;
 
@@ -112,8 +133,8 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
 
         {/* Content */}
         <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(95vh-140px)] scrollbar-hide">
-          {/* Rasm (agar mavjud bo'lsa) */}
-          {sparePart.imageUrl && (
+          {/* Rasm yoki Settings icon */}
+          {sparePart.imageUrl ? (
             <div className={`rounded-lg overflow-hidden border-2 ${
               isDarkMode ? 'border-red-900/30' : 'border-orange-200'
             }`}>
@@ -124,11 +145,76 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
                 onError={(e) => {
                   console.error('❌ Rasm yuklanmadi:', sparePart.imageUrl);
                   console.error('📍 To\'liq URL:', getFullImageUrl(sparePart.imageUrl));
-                  // Rasm yuklanmasa, placeholder ko'rsatish
+                  // Rasm yuklanmasa, Settings icon ko'rsatish
                   const target = e.target as HTMLImageElement;
-                  target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200"%3E%3Crect fill="%23ddd" width="400" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="20" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ERasm yo\'q%3C/text%3E%3C/svg%3E';
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent && !parent.querySelector('.settings-icon-placeholder')) {
+                    const placeholder = document.createElement('div');
+                    placeholder.className = `settings-icon-placeholder w-full h-48 flex items-center justify-center relative overflow-hidden ${
+                      isDarkMode 
+                        ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' 
+                        : 'bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50'
+                    }`;
+                    placeholder.innerHTML = `
+                      <div class="absolute inset-0 ${
+                        isDarkMode 
+                          ? 'bg-gradient-to-br from-red-500/5 to-transparent' 
+                          : 'bg-gradient-to-br from-orange-500/5 to-transparent'
+                      }"></div>
+                      <div class="relative">
+                        <div class="absolute inset-0 ${
+                          isDarkMode 
+                            ? 'bg-red-600' 
+                            : 'bg-orange-500'
+                        } rounded-full blur-xl opacity-20 animate-pulse"></div>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="relative ${
+                          isDarkMode ? 'text-gray-600' : 'text-orange-400'
+                        }" style="animation: spin 8s linear infinite;">
+                          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                      </div>
+                    `;
+                    parent.appendChild(placeholder);
+                  }
                 }}
               />
+            </div>
+          ) : (
+            <div className={`rounded-lg overflow-hidden border-2 ${
+              isDarkMode ? 'border-red-900/30' : 'border-orange-200'
+            }`}>
+              <div className={`w-full h-48 flex items-center justify-center relative overflow-hidden ${
+                isDarkMode 
+                  ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' 
+                  : 'bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50'
+              }`}>
+                {/* Animated background gradient */}
+                <div className={`absolute inset-0 ${
+                  isDarkMode 
+                    ? 'bg-gradient-to-br from-red-500/5 to-transparent' 
+                    : 'bg-gradient-to-br from-orange-500/5 to-transparent'
+                }`}></div>
+                
+                {/* Glow effect */}
+                <div className={`absolute inset-0 flex items-center justify-center ${
+                  isDarkMode ? 'opacity-20' : 'opacity-30'
+                }`}>
+                  <div className={`w-24 h-24 rounded-full blur-3xl animate-pulse ${
+                    isDarkMode 
+                      ? 'bg-red-600' 
+                      : 'bg-orange-500'
+                  }`}></div>
+                </div>
+                
+                {/* Settings icon with slow rotation */}
+                <div className="relative">
+                  <Settings className={`h-16 w-16 ${
+                    isDarkMode ? 'text-gray-600' : 'text-orange-400'
+                  }`} style={{ animation: 'spin 8s linear infinite' }} />
+                </div>
+              </div>
             </div>
           )}
           
@@ -175,7 +261,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
                 <span className="text-[10px] font-semibold text-orange-400">{t("O'zini", language)}</span>
               </div>
               <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {sparePart.currency === 'USD' ? '$' : ''}{(sparePart.costPrice || sparePart.sellingPrice || sparePart.price || 0).toLocaleString()}
+                {formatWithCurrency(sparePart.costPrice || sparePart.sellingPrice || sparePart.price || 0)}
               </p>
             </div>
 
@@ -189,7 +275,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
                 <span className="text-[10px] font-semibold text-green-400">{t('Sotish', language)}</span>
               </div>
               <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {sparePart.currency === 'USD' ? '$' : ''}{(sparePart.sellingPrice || sparePart.price || 0).toLocaleString()}
+                {formatWithCurrency(sparePart.sellingPrice || sparePart.price || 0)}
               </p>
             </div>
 
@@ -203,7 +289,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
                 <span className="text-[10px] font-semibold text-emerald-400">{t('Foyda', language)}</span>
               </div>
               <p className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {sparePart.currency === 'USD' ? '$' : ''}{(sparePart.profit || ((sparePart.sellingPrice || sparePart.price || 0) - (sparePart.costPrice || sparePart.sellingPrice || sparePart.price || 0))).toLocaleString()}
+                {formatWithCurrency(sparePart.profit || ((sparePart.sellingPrice || sparePart.price || 0) - (sparePart.costPrice || sparePart.sellingPrice || sparePart.price || 0)))}
               </p>
             </div>
           </div>
@@ -217,7 +303,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
             <div className="flex items-center justify-between">
               <span className={`text-xs font-semibold ${isDarkMode ? 'text-red-400' : 'text-orange-600'}`}>{t('Jami qiymat', language)}</span>
               <span className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                {sparePart.currency === 'USD' ? '$' : ''}{((sparePart.sellingPrice || sparePart.price || 0) * sparePart.quantity).toLocaleString()} {sparePart.currency === 'UZS' ? t("so'm", language) : ''}
+                {formatWithCurrency((sparePart.sellingPrice || sparePart.price || 0) * sparePart.quantity)}
               </span>
             </div>
           </div>
@@ -231,7 +317,7 @@ const ViewSparePartModal: React.FC<ViewSparePartModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-emerald-400">{t('Jami foyda', language)}</span>
               <span className="text-sm font-bold text-emerald-300">
-                {sparePart.currency === 'USD' ? '$' : ''}{((sparePart.profit || ((sparePart.sellingPrice || sparePart.price || 0) - (sparePart.costPrice || sparePart.sellingPrice || sparePart.price || 0))) * sparePart.quantity).toLocaleString()} {sparePart.currency === 'UZS' ? t("so'm", language) : ''}
+                {formatWithCurrency((sparePart.profit || ((sparePart.sellingPrice || sparePart.price || 0) - (sparePart.costPrice || sparePart.sellingPrice || sparePart.price || 0))) * sparePart.quantity)}
               </span>
             </div>
           </div>

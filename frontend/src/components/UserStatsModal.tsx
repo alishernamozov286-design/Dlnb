@@ -30,6 +30,8 @@ interface UserStatsModalProps {
   userStats: UserStats[];
   currentUserId?: string;
   language: 'latin' | 'cyrillic';
+  currency?: 'UZS' | 'USD';
+  usdRate?: number;
 }
 
 const UserStatsModal: React.FC<UserStatsModalProps> = ({
@@ -38,9 +40,28 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
   type,
   userStats,
   currentUserId,
-  language
+  language,
+  currency = 'UZS',
+  usdRate = 12700
 }) => {
   const { isDarkMode } = useTheme();
+  
+  // Currency conversion helper
+  const convertCurrency = (amount: number) => {
+    if (currency === 'USD') {
+      return amount / usdRate;
+    }
+    return amount;
+  };
+
+  // Format currency with symbol
+  const formatWithCurrency = (amount: number) => {
+    const converted = convertCurrency(amount);
+    if (currency === 'USD') {
+      return `$${converted.toFixed(2)}`;
+    }
+    return formatCurrency(amount, language);
+  };
   // Body scroll'ni to'xtatish
   useEffect(() => {
     if (isOpen) {
@@ -289,7 +310,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
                         <div className={`text-xs sm:text-sm font-bold truncate ${
                           isDarkMode ? 'text-green-300' : 'text-green-900'
                         }`}>
-                          {formatCurrency(user.income.total, language)}
+                          {formatWithCurrency(user.income.total)}
                         </div>
                       </div>
                       
@@ -303,7 +324,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
                           <div className={`text-[10px] sm:text-xs font-bold truncate ${
                             isDarkMode ? 'text-green-300' : 'text-green-900'
                           }`}>
-                            {formatCurrency(user.income.cash, language)}
+                            {formatWithCurrency(user.income.cash)}
                           </div>
                         </div>
                         
@@ -316,7 +337,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
                           <div className={`text-[10px] sm:text-xs font-bold truncate ${
                             isDarkMode ? 'text-green-300' : 'text-green-900'
                           }`}>
-                            {formatCurrency(user.income.card, language)}
+                            {formatWithCurrency(user.income.card)}
                           </div>
                         </div>
                       </div>
@@ -348,7 +369,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
                         <div className={`text-xs sm:text-sm font-bold truncate ${
                           isDarkMode ? 'text-red-300' : 'text-red-900'
                         }`}>
-                          {formatCurrency(user.expense.total, language)}
+                          {formatWithCurrency(user.expense.total)}
                         </div>
                       </div>
                       
@@ -362,7 +383,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
                           <div className={`text-[10px] sm:text-xs font-bold truncate ${
                             isDarkMode ? 'text-red-300' : 'text-red-900'
                           }`}>
-                            {formatCurrency(user.expense.cash, language)}
+                            {formatWithCurrency(user.expense.cash)}
                           </div>
                         </div>
                         
@@ -375,7 +396,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
                           <div className={`text-[10px] sm:text-xs font-bold truncate ${
                             isDarkMode ? 'text-red-300' : 'text-red-900'
                           }`}>
-                            {formatCurrency(user.expense.card, language)}
+                            {formatWithCurrency(user.expense.card)}
                           </div>
                         </div>
                       </div>
@@ -419,7 +440,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
                             ? balance >= 0 ? 'text-green-300' : 'text-red-300'
                             : balance >= 0 ? 'text-green-900' : 'text-red-900'
                         }`}>
-                          {formatCurrency(balance, language)}
+                          {formatWithCurrency(balance)}
                         </div>
                       </div>
                       
@@ -437,7 +458,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
                               ? cashBalance >= 0 ? 'text-green-300' : 'text-red-300'
                               : cashBalance >= 0 ? 'text-green-900' : 'text-red-900'
                           }`}>
-                            {formatCurrency(cashBalance, language)}
+                            {formatWithCurrency(cashBalance)}
                           </div>
                         </div>
                         
@@ -454,7 +475,7 @@ const UserStatsModal: React.FC<UserStatsModalProps> = ({
                               ? cardBalance >= 0 ? 'text-green-300' : 'text-red-300'
                               : cardBalance >= 0 ? 'text-green-900' : 'text-red-900'
                           }`}>
-                            {formatCurrency(cardBalance, language)}
+                            {formatWithCurrency(cardBalance)}
                           </div>
                         </div>
                       </div>

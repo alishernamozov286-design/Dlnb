@@ -10,7 +10,8 @@ import {
   Box,
   ArrowLeft,
   DollarSign,
-  TrendingUp
+  TrendingUp,
+  Settings
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { t } from '@/lib/transliteration';
@@ -91,11 +92,55 @@ const MasterWarehouse: React.FC = memo(() => {
   const [salesStats, setSalesStats] = useState<any>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [activeStatsTab, setActiveStatsTab] = useState<'warehouse' | 'sales'>('warehouse');
+  const [currency, setCurrency] = useState<'UZS' | 'USD'>('UZS'); // Currency toggle state
+  const [usdRate, setUsdRate] = useState<number>(12700); // Dollar kursi (dinamik)
+  const [isLoadingRate, setIsLoadingRate] = useState(false);
 
   const language = useMemo<'latin' | 'cyrillic'>(() => {
     const savedLanguage = localStorage.getItem('language');
     return (savedLanguage as 'latin' | 'cyrillic') || 'latin';
   }, []);
+
+  // Dollar kursini olish (CBU API)
+  React.useEffect(() => {
+    const fetchUsdRate = async () => {
+      try {
+        setIsLoadingRate(true);
+        const response = await fetch('https://cbu.uz/uz/arkhiv-kursov-valyut/json/');
+        const data = await response.json();
+        
+        const usdData = data.find((item: any) => item.Ccy === 'USD');
+        if (usdData) {
+          setUsdRate(parseFloat(usdData.Rate));
+        }
+      } catch (error) {
+        console.error('Dollar kursini olishda xatolik:', error);
+      } finally {
+        setIsLoadingRate(false);
+      }
+    };
+
+    fetchUsdRate();
+    const interval = setInterval(fetchUsdRate, 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Currency conversion helper
+  const convertCurrency = (amount: number) => {
+    if (currency === 'USD') {
+      return amount / usdRate;
+    }
+    return amount;
+  };
+
+  // Format currency with symbol
+  const formatWithCurrency = (amount: number) => {
+    const converted = convertCurrency(amount);
+    if (currency === 'USD') {
+      return `$${converted.toFixed(2)}`;
+    }
+    return formatCurrency(amount, language);
+  };
 
   // YANGI HOOK - Cars kabi
   const { 
@@ -312,7 +357,7 @@ const MasterWarehouse: React.FC = memo(() => {
     <div className={`min-h-screen ${
       isDarkMode
         ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900'
-        : 'bg-gradient-to-br from-slate-50 via-purple-50/30 to-indigo-50/40'
+        : 'bg-gradient-to-br from-purple-50 via-indigo-50/50 to-pink-50/30'
     }`}>
       <div className="max-w-[1400px] mx-auto space-y-6 sm:space-y-7 lg:space-y-8 p-3 sm:p-5 lg:p-7 animate-fade-in">
         {/* Back Button */}
@@ -389,6 +434,56 @@ const MasterWarehouse: React.FC = memo(() => {
                 <Plus className="h-5 w-5 relative z-10" />
                 <span className="relative z-10">{t('Tovar qo\'shish', language)}</span>
               </button>
+            </div>
+
+            {/* Currency Toggle */}
+            <div className="flex justify-end mb-3">
+              <div className="flex flex-col items-end gap-1">
+                {/* Kurs ko'rsatkichi */}
+                <div className={`text-xs font-medium ${
+                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  {isLoadingRate ? (
+                    <span className="animate-pulse">{t('Yuklanmoqda...', language)}</span>
+                  ) : (
+                    <span>1 USD = {usdRate.toLocaleString('uz-UZ')} {t('so\'m', language)}</span>
+                  )}
+                </div>
+                
+                {/* Toggle buttons */}
+                <div className={`inline-flex rounded-lg p-0.5 shadow-md ${
+                  isDarkMode ? 'bg-gray-800 border border-red-900/30' : 'bg-white border border-gray-200'
+                }`}>
+                  <button
+                    onClick={() => setCurrency('UZS')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all duration-300 ${
+                      currency === 'UZS'
+                        ? isDarkMode
+                          ? 'bg-gradient-to-r from-red-600 via-red-700 to-gray-900 text-white shadow-lg scale-105'
+                          : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg scale-105'
+                        : isDarkMode
+                          ? 'text-gray-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    UZS (so'm)
+                  </button>
+                  <button
+                    onClick={() => setCurrency('USD')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all duration-300 ${
+                      currency === 'USD'
+                        ? isDarkMode
+                          ? 'bg-gradient-to-r from-red-600 via-red-700 to-gray-900 text-white shadow-lg scale-105'
+                          : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg scale-105'
+                        : isDarkMode
+                          ? 'text-gray-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    USD ($)
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Stats Tabs - 50% width on desktop, 100% on mobile */}
@@ -572,7 +667,7 @@ const MasterWarehouse: React.FC = memo(() => {
                       <div className={`text-2xl font-black mb-1 ${
                         isDarkMode ? 'text-blue-300' : 'text-blue-900'
                       }`}>
-                        {formatCurrency(statistics.totalValue)}
+                        {formatWithCurrency(statistics.totalValue)}
                       </div>
                       <p className={`text-sm font-medium ${
                         isDarkMode ? 'text-blue-400' : 'text-blue-600'
@@ -763,7 +858,7 @@ const MasterWarehouse: React.FC = memo(() => {
                       <div className={`text-xl font-black ${
                         isDarkMode ? 'text-red-300' : 'text-purple-900'
                       }`}>
-                        {formatCurrency(salesStats?.totalRevenue || 0)}
+                        {formatWithCurrency(salesStats?.totalRevenue || 0)}
                       </div>
                     </div>
 
@@ -785,7 +880,7 @@ const MasterWarehouse: React.FC = memo(() => {
                       <div className={`text-xl font-black ${
                         isDarkMode ? 'text-yellow-300' : 'text-yellow-900'
                       }`}>
-                        {formatCurrency(salesStats?.totalProfit || 0)}
+                        {formatWithCurrency(salesStats?.totalProfit || 0)}
                       </div>
                     </div>
                   </>
@@ -882,11 +977,11 @@ const MasterWarehouse: React.FC = memo(() => {
 
                       {/* Product Name */}
                       <div className="mb-2">
-                        {/* Rasm (agar mavjud bo'lsa) */}
-                        {part.imageUrl && (
-                          <div className={`mb-2 rounded-lg overflow-hidden border-2 ${
-                            isDarkMode ? 'border-gray-700' : 'border-gray-300'
-                          }`}>
+                        {/* Rasm yoki Settings icon */}
+                        <div className={`mb-2 rounded-lg overflow-hidden border-2 ${
+                          isDarkMode ? 'border-gray-700' : 'border-gray-300'
+                        }`}>
+                          {part.imageUrl ? (
                             <img
                               src={getFullImageUrl(part.imageUrl)}
                               alt={part.name}
@@ -894,13 +989,74 @@ const MasterWarehouse: React.FC = memo(() => {
                               onError={(e) => {
                                 console.error('❌ Rasm yuklanmadi:', part.imageUrl);
                                 console.error('📍 To\'liq URL:', getFullImageUrl(part.imageUrl));
-                                // Rasm yuklanmasa, placeholder ko'rsatish
+                                // Rasm yuklanmasa, Settings icon ko'rsatish
                                 const target = e.target as HTMLImageElement;
-                                target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"%3E%3Crect fill="%23ddd" width="200" height="100"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ERasm yo\'q%3C/text%3E%3C/svg%3E';
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent && !parent.querySelector('.settings-icon-placeholder')) {
+                                  const placeholder = document.createElement('div');
+                                  placeholder.className = `settings-icon-placeholder w-full h-24 flex items-center justify-center relative overflow-hidden ${
+                                    isDarkMode 
+                                      ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' 
+                                      : 'bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100'
+                                  }`;
+                                  placeholder.innerHTML = `
+                                    <div class="absolute inset-0 ${
+                                      isDarkMode 
+                                        ? 'bg-gradient-to-br from-red-500/5 to-transparent' 
+                                        : 'bg-gradient-to-br from-purple-500/5 to-transparent'
+                                    }"></div>
+                                    <div class="relative">
+                                      <div class="absolute inset-0 ${
+                                        isDarkMode 
+                                          ? 'bg-red-600' 
+                                          : 'bg-purple-500'
+                                      } rounded-full blur-xl opacity-20 animate-pulse"></div>
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="relative ${
+                                        isDarkMode ? 'text-gray-600' : 'text-gray-400'
+                                      } animate-spin-slow">
+                                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                      </svg>
+                                    </div>
+                                  `;
+                                  parent.appendChild(placeholder);
+                                }
                               }}
                             />
-                          </div>
-                        )}
+                          ) : (
+                            <div className={`w-full h-24 flex items-center justify-center relative overflow-hidden ${
+                              isDarkMode 
+                                ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' 
+                                : 'bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50'
+                            }`}>
+                              {/* Animated background gradient */}
+                              <div className={`absolute inset-0 ${
+                                isDarkMode 
+                                  ? 'bg-gradient-to-br from-red-500/5 to-transparent' 
+                                  : 'bg-gradient-to-br from-purple-500/5 to-transparent'
+                              }`}></div>
+                              
+                              {/* Glow effect - kuchliroq */}
+                              <div className={`absolute inset-0 flex items-center justify-center ${
+                                isDarkMode ? 'opacity-20' : 'opacity-30'
+                              }`}>
+                                <div className={`w-20 h-20 rounded-full blur-3xl animate-pulse ${
+                                  isDarkMode 
+                                    ? 'bg-red-600' 
+                                    : 'bg-purple-500'
+                                }`}></div>
+                              </div>
+                              
+                              {/* Settings icon with slow rotation */}
+                              <div className="relative">
+                                <Settings className={`h-12 w-12 ${
+                                  isDarkMode ? 'text-gray-600' : 'text-purple-400'
+                                }`} style={{ animation: 'spin 8s linear infinite' }} />
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         
                         <h4 className={`font-bold text-sm line-clamp-2 min-h-[2.5rem] ${
                           isDarkMode ? 'text-white' : 'text-gray-900'
@@ -1000,7 +1156,7 @@ const MasterWarehouse: React.FC = memo(() => {
                           <span className={`text-sm font-bold ${
                             isDarkMode ? 'text-red-400' : 'text-purple-600'
                           }`}>
-                            {part.currency === 'USD' ? '$' : ''}{formatCurrency(part.sellingPrice || part.price || 0)}{part.currency === 'UZS' ? '' : ''}
+                            {formatWithCurrency(part.sellingPrice || part.price || 0)}
                           </span>
                         </div>
                       </div>
@@ -1115,6 +1271,8 @@ const MasterWarehouse: React.FC = memo(() => {
               setSelectedPart(null);
             }}
             sparePart={selectedPart}
+            currency={currency}
+            usdRate={usdRate}
           />
           <SellSparePartModal
             isOpen={isSellModalOpen}

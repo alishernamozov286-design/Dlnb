@@ -230,7 +230,7 @@ function AppRoutes() {
         } />
         <Route path="master/customers" element={
           <MasterRoute>
-            <MasterCustomers />
+            <MasterCustomers  />
           </MasterRoute>
         } />
         <Route path="master/knowledge" element={
